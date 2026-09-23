@@ -60,7 +60,7 @@
     "test": "craco test",
     "lint": "eslint src scripts",
     "license-check": "npx --yes license-checker --production --excludePrivatePackages --onlyAllow \"MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;LGPL-2.1;LGPL-3.0;GPL-3.0;MPL-2.0;CC0-1.0;Unlicense;CC-BY-4.0;Zlib;BlueOak-1.0.0;Python-2.0\"",
-    "test:rules": "node scripts/test-taxable-withdrawal.js && node scripts/test-avatars.js && node scripts/test-plus-values.js && node scripts/test-calendar-grid.js",
+    "test:rules": "node scripts/test-taxable-withdrawal.js && node scripts/test-avatars.js && node scripts/test-plus-values.js && node scripts/test-calendar-grid.js && node scripts/test-system-language.js",
     "test:security": "node scripts/test-documents-path.js && node scripts/test-import-validation.js && node scripts/test-crypto.js && node scripts/test-storage-encryption.js && node scripts/test-recent-files.js && node scripts/test-log-privacy.js && node scripts/test-document-folders.js && node scripts/test-passphrase-example.js && node scripts/test-gamification-privacy.js && node scripts/test-backup-rotation.js && node scripts/test-save-folder.js",
     "check:build": "node scripts/check-capabilities.js && node scripts/check-no-inline-script.js && node scripts/check-offline.js"
   },

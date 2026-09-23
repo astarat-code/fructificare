@@ -55,7 +55,7 @@ children.push(h2('3.2  Les commandes globales'));
 children.push(h3('Langue'));
 children.push(p([
   t("Le menu "), ui('Affichage › Langues'), t(" propose "), ui('Français'), t(' ou '), ui('English'),
-  t(" et bascule toute l'interface avec une traduction complète français / anglais. Le menu de la fenêtre et ce manuel suivent la langue choisie."),
+  t(" et bascule toute l'interface avec une traduction complète français / anglais. Le menu de la fenêtre et ce manuel suivent la langue choisie. Au premier lancement, Fructificare s'ouvre en français si Windows est en français, en anglais sinon."),
 ]));
 
 children.push(h3('Thème clair ou sombre'));

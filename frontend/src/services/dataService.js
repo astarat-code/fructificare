@@ -297,6 +297,7 @@ import { versementsPea } from '../lib/peaCap';
 import { estRetraitImposable } from '../lib/taxableWithdrawal';
 import { plusValuesDeLAnnee } from '../lib/plusValuesRachats';
 import { getTaxMaturity } from '../lib/taxMaturity';
+import { systemLanguage } from '../lib/systemLanguage';
 // questService est importé lazily (évite la dépendance circulaire questService → dataService)
 function _getQuestService() {
   try { return require('./questService').default; } catch (_) { return null; }
@@ -326,12 +327,13 @@ let _logs = [];
 
 // ── Préférences applicatives (thème + langue) ────────────────────────────────
 // Persistées dans le JSON principal sous la clé "appPreferences".
-// Valeur null = non encore définie (utilise le défaut du composant).
+// Valeur null = non encore définie (utilise le défaut du composant). Sauf la langue, qui
+// suit celle du système tant que l'utilisateur n'en a pas choisi une.
 // colorStyle : null/'pastel' = palette pastel moderne ; 'classic' = palette d'origine vive.
 // includeRegulatedInPerf : inclure les livrets réglementés dans la « Valeur totale » et
 //   le rendement global du tableau de bord (défaut : true — AFFICHAGE uniquement, sans
 //   effet sur le rapport fiscal, qui traite toujours les livrets séparément).
-let _appPreferences = { theme: null, language: null, colorStyle: null, includeRegulatedInPerf: true };
+let _appPreferences = { theme: null, language: systemLanguage(), colorStyle: null, includeRegulatedInPerf: true };
 
 function getAppPreferences() {
   return { ..._appPreferences };
@@ -340,6 +342,16 @@ function getAppPreferences() {
 function saveAppPreferences(patch) {
   _appPreferences = { ..._appPreferences, ...patch };
   saveData(); // debounce 2 s via storageService
+}
+
+function _restoreAppPreferences(saved) {
+  _appPreferences = { ..._appPreferences, ...saved };
+  // Un fichier enregistré avant tout choix de langue porte « language: null » : sans ce
+  // garde, il écraserait la langue du système et l'application repasserait en français.
+  if (_appPreferences.language !== 'fr' && _appPreferences.language !== 'en') {
+    _appPreferences.language = systemLanguage();
+  }
+  try { gamificationService.dispatchEvent('appPreferencesLoaded', { ..._appPreferences }); } catch (_) {}
 }
 
 // ============ DOCUMENTS (PDF locaux) ============
@@ -488,10 +500,7 @@ function setData(data) {
   _pruneOrphanCalibrations();
   // Restaurer les préférences applicatives si présentes
   if (data.appPreferences && typeof data.appPreferences === 'object') {
-    _appPreferences = { ..._appPreferences, ...data.appPreferences };
-    try {
-      gamificationService.dispatchEvent('appPreferencesLoaded', { ..._appPreferences });
-    } catch (_) {}
+    _restoreAppPreferences(data.appPreferences);
   }
 }
 
@@ -708,8 +717,7 @@ function applyImportedData(rawData, { save = true } = {}) {
     gamificationService.importFromJSON(data.gamification);
   }
   if (data.appPreferences && typeof data.appPreferences === 'object') {
-    _appPreferences = { ..._appPreferences, ...data.appPreferences };
-    try { gamificationService.dispatchEvent('appPreferencesLoaded', { ..._appPreferences }); } catch (_) {}
+    _restoreAppPreferences(data.appPreferences);
   }
 
   if (save) storageService.save(JSON.stringify(buildExportPayload(), null, 2));

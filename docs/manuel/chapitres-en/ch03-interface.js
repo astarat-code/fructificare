@@ -55,7 +55,7 @@ children.push(h2('3.2  Global commands'));
 children.push(h3('Language'));
 children.push(p([
   t("The "), ui('View › Languages'), t(" menu offers "), ui('Français'), t(' or '), ui('English'),
-  t(" and switches the whole interface, fully translated into French or English. The window menu and this manual follow the chosen language."),
+  t(" and switches the whole interface, fully translated into French or English. The window menu and this manual follow the chosen language. On first launch, Fructificare opens in French if Windows is in French, and in English otherwise."),
 ]));
 
 children.push(h3('Light or dark theme'));

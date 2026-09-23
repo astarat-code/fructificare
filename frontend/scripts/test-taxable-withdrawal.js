@@ -89,6 +89,7 @@ const srcData = fs
 const { calculateTax } = new Function(
   `${lib('taxMaturity.js')}
 ${lib('taxableWithdrawal.js')}
+${lib('systemLanguage.js')}
 ${srcData}
 return { calculateTax };`,
 )();
