@@ -1,0 +1,53 @@
+# Surveillance des dépendances.
+#
+# Une dépendance compromise est, statistiquement, le vecteur le plus probable d'une
+# attaque réelle contre ce type d'application : le code malveillant s'exécuterait dans
+# la webview, avec les droits que lui accorde src-tauri/capabilities/default.json.
+# Ces droits sont volontairement minimaux, mais la meilleure défense reste de ne pas
+# embarquer une version vulnérable.
+#
+# Les mises à jour sont regroupées pour éviter un flot de pull requests ingérable sur
+# un projet à un seul mainteneur : un lot par écosystème et par semaine.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Les correctifs de sécurité arrivent seuls, pour être fusionnés vite.
+      securite:
+        applies-to: security-updates
+        patterns: ['*']
+      # Le reste est regroupé : mineures et correctifs ensemble, majeures séparées
+      # (elles demandent une relecture, pas une fusion automatique).
+      mineures:
+        applies-to: version-updates
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [dependances, securite]
+
+  - package-ecosystem: cargo
+    directory: /frontend/src-tauri
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      securite:
+        applies-to: security-updates
+        patterns: ['*']
+      mineures:
+        applies-to: version-updates
+        patterns: ['*']
+        update-types: [minor, patch]
+    labels: [dependances, securite]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    labels: [dependances]

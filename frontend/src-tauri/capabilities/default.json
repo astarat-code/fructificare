@@ -1,0 +1,53 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Fructificare — accès disque limité aux dossiers de l'application, dialogues de fichiers, ouverture de documents, menu natif. N'AJOUTEZ JAMAIS « opener:default » : ce jeu contient allow-open-url + allow-default-urls (portée http://* et https://*), soit un canal d'exfiltration que la CSP ne peut pas fermer, puisqu'ouvrir le navigateur système ne passe pas par la webview. L'application n'ouvre que des chemins locaux. Contrôlé par scripts/check-capabilities.js.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "core:menu:default",
+    "core:window:default",
+    "core:app:default",
+
+    "dialog:allow-open",
+    "dialog:allow-save",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        { "path": "$APPDATA/documents imp" },
+        { "path": "$APPDATA/documents imp/*/*.pdf" },
+        { "path": "$APPDATA/documents importés/*/*.pdf" },
+        { "path": "$APPDATA/manuel/*.pdf" },
+        { "path": "$DESKTOP/*.pdf" },
+        { "path": "$DOCUMENT/*.pdf" },
+        { "path": "$DOWNLOAD/*.pdf" }
+      ]
+    },
+
+    "fs:allow-mkdir",
+    "fs:allow-read-file",
+    "fs:allow-read-text-file",
+    "fs:allow-write-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
+    "fs:allow-copy-file",
+    "fs:allow-exists",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$APPDATA/save" },
+        { "path": "$APPDATA/save/**" },
+        { "path": "$APPDATA/sauvegarde" },
+        { "path": "$APPDATA/sauvegarde/**" },
+        { "path": "$APPDATA/documents imp" },
+        { "path": "$APPDATA/documents imp/**" },
+        { "path": "$APPDATA/documents importés" },
+        { "path": "$APPDATA/documents importés/**" },
+        { "path": "$APPDATA/manuel" },
+        { "path": "$APPDATA/manuel/**" }
+      ]
+    }
+  ]
+}

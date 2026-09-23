@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a feature or an improvement / Proposer une fonctionnalité
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two constraints shape what can be accepted: the application stays **offline** (no
+        network request, no account, no telemetry), and it gives **no investment advice**.
+        Suggestions that need either are out of scope.
+
+        *L'application reste hors ligne et ne donne aucun conseil en investissement : une
+        proposition qui suppose l'un ou l'autre sort du périmètre.*
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do that the application makes hard today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you considered

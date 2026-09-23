@@ -1,0 +1,160 @@
+# Build public et reproductible de l'application Windows.
+#
+# POURQUOI UNE CI PUBLIQUE : les binaires ne sont pas signés par un certificat de
+# signature de code. La CI est ce qui permet à un utilisateur de rattacher un exécutable
+# publié à un commit vérifiable — le journal de build est public, et les empreintes
+# SHA-256 sont calculées ici, pas sur la machine du mainteneur.
+#
+# ─── CE WORKFLOW EST LA CIBLE LA PLUS INTÉRESSANTE DU PROJET ────────────────────────
+#
+# Compromettre l'application chez un utilisateur ne donne accès qu'à un patrimoine.
+# Compromettre ce fichier donne accès à TOUS les utilisateurs à la fois, sous la forme
+# d'un .exe publié sous le nom du projet, accompagné d'une empreinte SHA-256 calculée
+# par la CI elle-même — la vérification que l'on recommande aux utilisateurs confirmerait
+# alors le binaire piégé. D'où les deux règles suivantes, qui ne doivent pas être
+# assouplies « pour simplifier » :
+#
+#   1. TOUTES LES ACTIONS SONT ÉPINGLÉES PAR SHA DE COMMIT, jamais par étiquette.
+#      Une étiquette (`@v2`) et a fortiori une branche (`@stable`) sont mutables : celui
+#      qui prend le contrôle d'un dépôt d'action la déplace et exécute son code ici.
+#      Le commentaire à droite rappelle la version, Dependabot (github-actions, voir
+#      .github/dependabot.yml) propose les mises à jour de SHA.
+#
+#   2. LE JETON D'ÉCRITURE EST ISOLÉ DANS UN JOB QUI NE COMPILE RIEN.
+#      Le job `windows` exécute `npm ci` — donc les scripts d'installation de
+#      dépendances tierces — et `cargo build`. Il est en lecture seule. Seul `publier`,
+#      qui se contente de télécharger un artefact déjà construit, porte
+#      `contents: write`. Une dépendance compromise n'a donc aucun jeton à voler.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+# Défaut restrictif : chaque job ré-accorde ce dont il a besoin, et rien de plus.
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    # Aucune permission d'écriture : ce job exécute du code tiers (npm ci, cargo).
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: frontend/src-tauri
+
+      # npm ci — installe exactement les versions verrouillées, sans résolution de plages.
+      # --ignore-scripts (B-09) : ce job exécute déjà du code tiers à la compilation, mais
+      # rien n'oblige à exécuter EN PLUS les scripts d'installation npm, inutiles ici.
+      - name: Installer les dépendances
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      # Bloquant, comme dans ci.yml. Une version n'a pas à être moins exigeante que le
+      # contrôle d'une pull request : c'est la seule sortie qui atteint les utilisateurs.
+      - name: Vérifier les vulnérabilités connues
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+      # L'ACL Tauri décide de ce que la webview peut atteindre. Une permission trop
+      # large ici annulerait les protections applicatives : contrôle avant compilation.
+      - name: Vérifier l'ACL Tauri
+        working-directory: frontend
+        run: node scripts/check-capabilities.js
+
+      - name: Tester la règle d'imposition des ventes
+        working-directory: frontend
+        run: npm run test:rules
+
+      - name: Tests de sécurité
+        working-directory: frontend
+        run: npm run test:security
+
+      - name: Compiler l'application
+        working-directory: frontend
+        run: npm run tauri build
+
+      # Le garde de navigation (B-02) vit côté Rust : il faut le tester côté Rust.
+      # APRÈS la compilation, et c'est obligatoire : generate_context!() embarque le
+      # dossier frontend/build au moment de compiler, y compris pour les tests. Placée
+      # avant, cette étape échouerait sur un runner neuf, où build/ n'existe pas encore.
+      - name: Tests Rust
+        working-directory: frontend/src-tauri
+        run: cargo test --lib
+
+      - name: Calculer les empreintes SHA-256
+        working-directory: frontend/src-tauri/target/release
+        shell: pwsh
+        run: |
+          $out = New-Item -ItemType Directory -Force -Path artifacts
+          Copy-Item fructificare.exe (Join-Path $out "Fructificare.exe")
+          Get-ChildItem bundle/nsis -Filter *setup.exe | Copy-Item -Destination $out
+          Get-ChildItem $out -Filter *.exe |
+            Get-FileHash -Algorithm SHA256 |
+            ForEach-Object { "{0}  {1}" -f $_.Hash.ToLower(), (Split-Path $_.Path -Leaf) } |
+            Set-Content -Path (Join-Path $out "SHA256SUMS.txt") -Encoding ascii
+          Get-Content (Join-Path $out "SHA256SUMS.txt")
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fructificare-windows
+          path: frontend/src-tauri/target/release/artifacts/*
+
+  # Job séparé, et c'est tout l'intérêt : il ne compile rien, n'installe aucune
+  # dépendance, n'exécute aucun code tiers. Il télécharge l'artefact du job précédent
+  # et le publie. C'est le seul endroit du dépôt où un jeton d'écriture existe.
+  publier:
+    needs: windows
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: fructificare-windows
+          path: artifacts
+
+      # En brouillon : la version n'est visible qu'une fois relue et publiée à la main
+      # (notes, fichiers joints, empreintes). Un tag poussé par erreur ne publie rien.
+      - name: Publier la version
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
+        with:
+          draft: true
+          files: artifacts/*
+          body: |
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for what changed.
+
+            **Windows:** download `Fructificare_*_x64-setup.exe`. The binaries are not code-signed
+            yet, so Windows SmartScreen may warn you: choose *More info → Run anyway*.
+            Before running it, check its fingerprint:
+
+            ```powershell
+            Get-FileHash .\Fructificare_*_x64-setup.exe -Algorithm SHA256
+            ```
+
+            and compare it with `SHA256SUMS.txt`. The fingerprints are computed by the CI, whose
+            build log is public.
+
+            ---
+
+            **Windows :** téléchargez `Fructificare_*_x64-setup.exe`. Les binaires ne sont pas
+            encore signés : SmartScreen peut afficher un avertissement, choisissez
+            *Informations complémentaires → Exécuter quand même*. Avant de l'exécuter, vérifiez
+            son empreinte avec la commande ci-dessus et comparez-la avec `SHA256SUMS.txt`.

@@ -1,0 +1,121 @@
+# Contrôles exécutés sur chaque poussée et chaque pull request.
+#
+# Les tests de sécurité sont bloquants : ils vérifient les deux barrières qui protègent
+# l'utilisateur d'un fichier de sauvegarde hostile (validation des chemins de documents,
+# assainissement des données importées). Une régression sur l'une ou l'autre rouvrirait
+# une exécution de code arbitraire ou une suppression de fichier.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Ces jobs ne font que lire et compiler : aucun n'a besoin d'écrire dans le dépôt.
+# Les actions sont épinglées par SHA de commit pour la raison détaillée en tête de
+# release.yml — une étiquette est mutable, donc réécrivable par un tiers.
+permissions:
+  contents: read
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # npm ci installe exactement les versions verrouillées, sans résolution de plages.
+      # --ignore-scripts : aucune dépendance n'a besoin de son script d'installation pour
+      # ce build (seuls core-js et fsevents en ont, sans effet ici), et ces scripts sont
+      # le vecteur classique d'une dépendance compromise (B-09).
+      - name: Installer les dépendances
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      # L'ACL Tauri (src-tauri/capabilities/) décide de ce que la webview peut
+      # atteindre. « opener:default » y avait réintroduit l'ouverture d'URL arbitraires,
+      # soit un canal d'exfiltration hors de portée de la CSP : ce contrôle empêche la
+      # permission de revenir sans que le build échoue.
+      - name: Vérifier l'ACL Tauri
+        working-directory: frontend
+        run: node scripts/check-capabilities.js
+
+      # ESLint (eslint.config.js) : mêmes règles React/hooks que le build, plus l'interdiction
+      # des console.log — une trace de debug oubliée finit par livrer des données en clair.
+      - name: Analyse statique
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Tester la règle d'imposition des ventes
+        working-directory: frontend
+        run: npm run test:rules
+
+      - name: Tests de sécurité
+        working-directory: frontend
+        run: npm run test:security
+
+      - name: Build de production
+        working-directory: frontend
+        run: npm run build
+        env:
+          CI: 'false' # les avertissements ESLint ne doivent pas faire échouer le build
+
+      # Vérifie que la CSP « script-src 'self' » reste applicable : CRA réinjecterait un
+      # script inline si INLINE_RUNTIME_CHUNK=false disparaissait de .env.
+      - name: Vérifier l'absence de script inline
+        working-directory: frontend
+        run: node scripts/check-no-inline-script.js
+
+      # L'application est hors ligne : aucune ressource distante ne doit subsister.
+      - name: Vérifier l'absence de ressource distante
+        working-directory: frontend
+        run: node scripts/check-offline.js
+
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # Bloquant, et c'est voulu : `--omit=dev` ne couvre plus que les paquets
+      # réellement embarqués dans l'application, et ce périmètre est aujourd'hui à
+      # zéro vulnérabilité. Une alerte signifie donc quelque chose de réel, sur du
+      # code qui s'exécute chez l'utilisateur.
+      #
+      # (Avant que react-scripts ne soit déplacé en devDependencies, cette commande
+      # remontait 52 alertes portant sur l'outillage de compilation et échouait en
+      # permanence — une CI toujours rouge n'apprend qu'à ignorer l'alerte.)
+      - name: Vulnérabilités connues (dépendances embarquées)
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=high
+
+  # Les dépendances JavaScript étaient auditées, pas les dépendances Rust. Or c'est du
+  # code natif, sans bac à sable, qui tourne avec les droits de l'utilisateur : une
+  # faille dans une crate de l'arbre Tauri porte plus loin qu'une faille npm.
+  audit-rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+        with:
+          toolchain: stable
+      - name: Installer cargo-audit
+        run: cargo install cargo-audit --locked
+      # Pas de « --deny warnings », et c'est mesuré : l'arbre Tauri traîne des crates
+      # signalées « unmaintained » (proc-macro-error, la famille unic-*) et une
+      # unsoundness dans glib — qui n'est compilée que sur Linux, jamais dans le binaire
+      # Windows. Aucune n'est corrigeable depuis ce dépôt. Les transformer en échec
+      # donnerait une CI rouge en permanence, et une CI toujours rouge n'apprend qu'à
+      # ignorer l'alerte. La commande échoue donc sur les vulnérabilités réelles, et
+      # rapporte le reste pour information.
+      - name: Vulnérabilités connues (crates embarquées)
+        working-directory: frontend/src-tauri
+        run: cargo audit

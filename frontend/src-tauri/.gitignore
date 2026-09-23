@@ -1,0 +1,3 @@
+# Artefacts de compilation Rust / Tauri
+/target
+/gen/schemas

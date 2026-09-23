@@ -1,0 +1,156 @@
+/* SPDX-License-Identifier: AGPL-3.0-or-later | Copyright (C) 2026 astarat-code */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Fructificare brand font ─────────────────────────────────────── */
+@font-face {
+  font-family: 'Vintage';
+  src: url('./fonts/vintage.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Fructificare color palette ──────────────────────────────────── */
+/*
+  Gold     : RGB(239,173,36)  → hsl(41 86% 54%)   ← inchangé
+  Cyan     : RGB(41,161,166)  → hsl(182 60% 41%)
+  Blue     : RGB(23,110,133)  → hsl(193 71% 31%)
+  Salmon   : RGB(230,115,120) → hsl(357 70% 68%)
+  ─── Mode clair (Prompt 10A) ───────────────────────────────────────
+  BgWarm   : #F8F7F4           → hsl(45 22% 96%)   fond blanc-chaud
+  CardCream: #EFEDE8           → hsl(43 18% 92%)   cartes crème
+  Border   : #D4D0C8           → hsl(40 12% 81%)   contours taupe
+  InkWarm  : #1C1A17           → hsl(36 10% 10%)   texte quasi-noir chaud
+  GreyWarm : #5C584F           → hsl(42  8% 34%)   texte secondaire
+  SoberRed : #C0392B           → hsl(  6 63% 46%)  rouge sobre
+*/
+
+@layer base {
+  :root {
+    /* Surfaces */
+    --background:         45 22% 96%;   /* blanc-chaud #F8F7F4 */
+    --foreground:         36 10% 10%;   /* quasi-noir chaud #1C1A17 */
+
+    --card:               43 18% 92%;   /* crème #EFEDE8 */
+    --card-foreground:    36 10% 10%;
+
+    --popover:            43 18% 92%;
+    --popover-foreground: 36 10% 10%;
+
+    /* Brand gold – boutons principaux, nav active */
+    --primary:            41 86% 54%;   /* or Fructificare — inchangé */
+    --primary-foreground: 36 10% 10%;
+
+    /* Secondary – taupe clair */
+    --secondary:          43 15% 86%;
+    --secondary-foreground: 36 10% 20%;
+
+    /* Muted */
+    --muted:              43 15% 86%;
+    --muted-foreground:   42  8% 34%;   /* gris chaud #5C584F */
+
+    /* Accent – cyan teinté */
+    --accent:             182 45% 88%;
+    --accent-foreground:  182 60% 22%;
+
+    /* Destructive – rouge sobre */
+    --destructive:        6 63% 46%;    /* #C0392B */
+    --destructive-foreground: 47 77% 96%;
+
+    /* Contours */
+    --border:             40 12% 81%;   /* taupe #D4D0C8 */
+    --input:              40 12% 81%;
+    --ring:               41 86% 54%;
+
+    /* Charts */
+    --chart-1:            41 86% 54%;   /* or */
+    --chart-2:            182 60% 41%;  /* cyan */
+    --chart-3:            193 71% 31%;  /* bleu */
+    --chart-4:            357 70% 62%;  /* saumon */
+    --chart-5:            6 63% 46%;    /* rouge sobre */
+
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background:         248 54% 7%;
+    --foreground:         51 77% 92%;
+
+    --card:               248 45% 11%;
+    --card-foreground:    51 77% 92%;
+
+    --popover:            248 45% 11%;
+    --popover-foreground: 51 77% 92%;
+
+    --primary:            41 86% 58%;
+    --primary-foreground: 248 54% 8%;
+
+    --secondary:          248 28% 18%;
+    --secondary-foreground: 51 77% 88%;
+
+    --muted:              248 28% 18%;
+    --muted-foreground:   248 14% 60%;
+
+    --accent:             182 50% 16%;
+    --accent-foreground:  182 55% 72%;
+
+    --destructive:        4 65% 40%;
+    --destructive-foreground: 51 77% 92%;
+
+    --border:             248 28% 22%;
+    --input:              248 28% 22%;
+    --ring:               41 86% 54%;
+
+    --chart-1:            41 86% 62%;
+    --chart-2:            182 55% 52%;
+    --chart-3:            193 71% 48%;
+    --chart-4:            357 70% 72%;
+    --chart-5:            4 74% 58%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+}
+
+@layer base {
+  [data-debug-wrapper="true"] {
+    display: contents !important;
+  }
+}
+
+/* ── Scrollbar épaisse (graphiques) ──────────────────────────────── */
+@layer utilities {
+  .scrollbar-thick {
+    scrollbar-width: auto;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.5) hsl(var(--muted));
+  }
+  .scrollbar-thick::-webkit-scrollbar {
+    height: 10px;
+    width: 10px;
+  }
+  .scrollbar-thick::-webkit-scrollbar-track {
+    background: hsl(var(--muted));
+    border-radius: 5px;
+  }
+  .scrollbar-thick::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.5);
+    border-radius: 5px;
+    border: 2px solid hsl(var(--muted));
+  }
+  .scrollbar-thick::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground) / 0.8);
+  }
+
+  /* Utilitaire pour le logo Fructificare */
+  .font-vintage {
+    font-family: 'Vintage', 'Outfit', serif;
+  }
+}

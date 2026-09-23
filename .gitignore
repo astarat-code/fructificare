@@ -1,0 +1,65 @@
+# Dépendances
+node_modules/
+
+# Sorties de build
+docs/manuel/*.docx
+/build
+frontend/build/
+frontend/dist-tauri/
+frontend/src-tauri/target/
+frontend/src-tauri/gen/
+dist/
+*.exe
+
+# ── Données personnelles ───────────────────────────────────────────────────
+# Logique INVERSÉE : tout JSON est refusé, les fichiers de configuration connus sont
+# rétablis un par un. Une liste noire ne protégeait que les noms générés par
+# l'application : un export renommé « mon-patrimoine.json » serait passé au travers,
+# et l'historique git conserve définitivement ce qui a été commité une fois.
+*.json
+!package.json
+!package-lock.json
+!components.json
+!jsconfig.json
+!.github/**/*.json
+!frontend/src-tauri/tauri.conf.json
+!frontend/src-tauri/capabilities/*.json
+!docs/manuel/package.json
+!docs/manuel/package-lock.json
+
+documents imp/
+documents importés/
+sauvegarde/
+save/
+documents/
+
+# Clés et certificats : rien de tel n'a sa place ici.
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Environnement
+.env.local
+.env.*.local
+
+# Journaux
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Éditeurs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Cache
+.cache/
+*.pack
+.eslintcache

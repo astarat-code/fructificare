@@ -1,0 +1,63 @@
+name: Bug report
+description: Something behaves incorrectly / Un comportement incorrect
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Never attach a backup file or a screenshot showing your
+        real portfolio** — an issue is public, and those contain your whole net worth.
+        Reproduce with fictional amounts instead.
+
+        *Merci de ne jamais joindre de sauvegarde ni de capture montrant votre patrimoine
+        réel : une issue est publique. Reproduisez avec des montants fictifs.*
+
+        A security vulnerability goes through the **Security** tab → **Report a
+        vulnerability**, not here.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+        3. …
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Fructificare version
+      description: Shown in the installer file name, e.g. 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+
+  - type: dropdown
+    id: language
+    attributes:
+      label: Interface language
+      options: [Français, English]
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: |
+        The activity log (`Settings → Activity log`) may help. It contains no amount and no
+        envelope name, but read it before attaching it.
