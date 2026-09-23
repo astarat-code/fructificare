@@ -8,6 +8,10 @@ const {
 const { Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell,
         WidthType, ShadingType, TableOfContents } = require('docx');
 
+// Read from the application itself: a number hard-coded here always ends up drifting
+// from the released version.
+const { version: VERSION } = require('../../../frontend/package.json');
+
 const children = [];
 
 // ── Title page ─────────────────────────────────────────────────────────────
@@ -19,7 +23,7 @@ children.push(
   new Paragraph({ spacing: { before: 500, after: 0 }, alignment: AlignmentType.CENTER,
     children: [new TextRun({ text: 'Personal wealth tracking — 100% local', size: 24, color: GREY, italics: true })] }),
   new Paragraph({ spacing: { before: 1800, after: 0 }, alignment: AlignmentType.CENTER,
-    children: [new TextRun({ text: 'Version 4.5.1', size: 22, color: GREY })] }),
+    children: [new TextRun({ text: `Version ${VERSION}`, size: 22, color: GREY })] }),
   new Paragraph({ spacing: { before: 60 }, alignment: AlignmentType.CENTER,
     children: [new TextRun({ text: 'Edition 2 — September 2026', size: 20, color: GREY, italics: true })] }),
 );

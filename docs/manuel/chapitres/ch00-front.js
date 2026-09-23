@@ -8,6 +8,10 @@ const {
 const { Paragraph, TextRun, AlignmentType, Table, TableRow, TableCell,
         WidthType, ShadingType, TableOfContents } = require('docx');
 
+// Lue dans l'application elle-même : un numéro écrit ici en dur finit toujours par
+// diverger de la version publiée.
+const { version: VERSION } = require('../../../frontend/package.json');
+
 const children = [];
 
 // ── Page de titre ──────────────────────────────────────────────────────────
@@ -19,9 +23,9 @@ children.push(
   new Paragraph({ spacing: { before: 500, after: 0 }, alignment: AlignmentType.CENTER,
     children: [new TextRun({ text: 'Suivi de patrimoine personnel — 100 % local', size: 24, color: GREY, italics: true })] }),
   new Paragraph({ spacing: { before: 1800, after: 0 }, alignment: AlignmentType.CENTER,
-    children: [new TextRun({ text: 'Version 4.5.1', size: 22, color: GREY })] }),
+    children: [new TextRun({ text: `Version ${VERSION}`, size: 22, color: GREY })] }),
   new Paragraph({ spacing: { before: 60 }, alignment: AlignmentType.CENTER,
-    children: [new TextRun({ text: 'Version 2 — septembre 2026', size: 20, color: GREY, italics: true })] }),
+    children: [new TextRun({ text: 'Édition 2 — septembre 2026', size: 20, color: GREY, italics: true })] }),
 );
 
 // ── Comment lire ce manuel ─────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 {
   "name": "fructificare",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Offline portfolio tracker and simulator for French investors (PEA, brokerage, life insurance, PER).",
   "keywords": [
