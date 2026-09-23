@@ -4,16 +4,17 @@ import { createContext, useContext, useState, useCallback, useEffect } from "rea
 import translations from "../i18n";
 import dataService from "../services/dataService";
 import gamificationService from "../services/gamificationService";
+import { systemLanguage } from "../lib/systemLanguage";
 
 const LanguageContext = createContext();
 
 export function LanguageProvider({ children }) {
-  // Lit la langue sauvegardée dans le JSON ; "fr" si absente (premier lancement)
+  // Lit la langue sauvegardée dans le JSON ; au premier lancement, celle du système
   const [lang, setLangState] = useState(() => {
     try {
-      return dataService.getAppPreferences().language || "fr";
+      return dataService.getAppPreferences().language || systemLanguage();
     } catch (_) {
-      return "fr";
+      return systemLanguage();
     }
   });
 

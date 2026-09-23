@@ -72,9 +72,17 @@ async function main() {
   check('aller-retour fidèle', roundTrip === PLAINTEXT);
 
   // ── Aucune fuite en clair ────────────────────────────────────────────────────
+  // Le chiffré, en base64, est aléatoire : une chaîne courte comme « PEA » ou « 1000 » y
+  // apparaît par pur hasard environ une fois sur 800, et faisait échouer la CI sans
+  // qu'aucune donnée ne fuie. Les valeurs courtes sont donc cherchées dans tous les
+  // champs SAUF le chiffré ; le chiffré, lui, ne doit pas contenir le texte clair.
+  const { ciphertext, ...champsEnClair } = envelope;
+  const horsChiffre = JSON.stringify(champsEnClair);
   check('« portfolios » absent du fichier chiffré', !envelopeText.includes('portfolios'));
-  check('« PEA » absent du fichier chiffré', !envelopeText.includes('PEA'));
-  check('montant « 1000 » absent du fichier chiffré', !envelopeText.includes('1000'));
+  check('« PEA » absent des champs non chiffrés', !horsChiffre.includes('PEA'), horsChiffre);
+  check('montant « 1000 » absent des champs non chiffrés', !horsChiffre.includes('1000'), horsChiffre);
+  check('le texte clair absent du chiffré décodé',
+    !Buffer.from(ciphertext, 'base64').includes(Buffer.from(PLAINTEXT)));
   check('le sel est publié (nécessaire au déchiffrement)', typeof envelope.salt === 'string');
 
   // ── Mauvaise phrase ──────────────────────────────────────────────────────────

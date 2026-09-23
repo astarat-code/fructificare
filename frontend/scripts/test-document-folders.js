@@ -19,12 +19,17 @@ const path = require('path');
 
 // ── Chargement des modules réels ───────────────────────────────────────────────
 
+// dataService appelle systemLanguage() dès son chargement : ses imports étant neutralisés,
+// on lui fournit ce module directement.
+const SYSTEM_LANGUAGE = fs.readFileSync(path.join(__dirname, '..', 'src', 'lib', 'systemLanguage.js'), 'utf8')
+  .replace(/^export /gm, '');
+
 function extraire(fichier, noms) {
   const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', fichier), 'utf8')
     .replace(/^import .*$/gm, '')
     .replace(/^export default .*$/m, '')
     .replace(/^export \{[\s\S]*?\};$/m, '');
-  return new Function(`${src}\nreturn { ${noms.join(', ')} };`)();
+  return new Function(`${SYSTEM_LANGUAGE}\n${src}\nreturn { ${noms.join(', ')} };`)();
 }
 
 const { getPortfolioSlug } = extraire('dataService.js', ['getPortfolioSlug']);

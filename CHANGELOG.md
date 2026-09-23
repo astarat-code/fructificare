@@ -7,6 +7,27 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.1] — 2026-09-23
+
+### Changed
+
+- **Language on first launch** — Fructificare now opens in French when Windows is in French,
+  and in English otherwise; it used to open in French everywhere. A language chosen in
+  *View › Languages* still takes precedence.
+- **Dependencies** — Tauri 2.11.6 and its plugins, React 19.3, Recharts 3.10 and Radix UI
+  (26 grouped minor updates), lucide-react 1.47 and globals 17. The CI and release
+  workflows move to actions running on Node.js 24 (checkout 7, setup-node 7,
+  upload-artifact 7, download-artifact 8, action-gh-release 3); download-artifact now fails
+  on a hash mismatch.
+
+### Fixed
+
+- **User manual** — the cover showed an obsolete internal version number (4.5.1). It now
+  reads the application version, so the two can no longer drift apart.
+- **Security test suite** — two checks failed about once in 500 runs: they looked for short
+  strings such as "PEA" in random ciphertext. They now check the unencrypted fields and the
+  decoded ciphertext instead.
+
 ## [1.0.0] — 2026-09-23
 
 First public release.
@@ -34,5 +55,6 @@ First public release.
 - **Public build chain** — CI-built Windows binaries with published SHA-256 fingerprints,
   actions pinned by commit hash, write token isolated in a job that compiles nothing.
 
-[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/astarat-code/fructificare/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/astarat-code/fructificare/releases/tag/v1.0.0

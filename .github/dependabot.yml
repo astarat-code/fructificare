@@ -29,6 +29,14 @@ updates:
         patterns: ['*']
         update-types: [minor, patch]
     labels: [dependances, securite]
+    ignore:
+      # ESLint 10 : eslint-plugin-react, eslint-plugin-import et eslint-plugin-jsx-a11y ne le
+      # supportent pas encore (peerDependencies limitées à ^9 en septembre 2026) — la CI
+      # échoue. À retirer quand les trois plugins accepteront ^10.
+      - dependency-name: 'eslint'
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: cargo
     directory: /frontend/src-tauri

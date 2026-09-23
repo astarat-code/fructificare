@@ -73,6 +73,9 @@ $exe   = Join-Path $work "src-tauri\target\release\fructificare.exe"
 # alphabétique — donc une ancienne version, publiée ensuite sous le nom de la nouvelle.
 $setup = Get-ChildItem (Join-Path $work "src-tauri\target\release\bundle\nsis") -Filter "*setup.exe" -ErrorAction SilentlyContinue |
   Sort-Object LastWriteTime -Descending | Select-Object -First 1
+# Même raison côté dist-tauri : l'installeur de la version précédente y resterait, et
+# SHA256SUMS.txt listerait les deux.
+Remove-Item (Join-Path $dist "*setup.exe") -Force -ErrorAction SilentlyContinue
 if (Test-Path $exe)  { Copy-Item $exe (Join-Path $dist "Fructificare.exe") -Force }
 if ($setup)          { Copy-Item $setup.FullName $dist -Force }
 
