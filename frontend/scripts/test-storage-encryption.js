@@ -135,7 +135,12 @@ async function main() {
   const onDisk = JSON.parse(disk.content);
   check('le fichier est une enveloppe chiffrée', cryptoService.isEncryptedEnvelope(onDisk));
   check('le contenu sensible a disparu du disque', !disk.content.includes('patrimoine 123456'));
-  check('le nom de l\'enveloppe a disparu du disque', !disk.content.includes('PEA'));
+  // « PEA » est cherché hors du chiffré : trois caractères apparaissent par hasard dans un
+  // base64 aléatoire (≈ 1 fois sur 1 300), ce qui faisait échouer la CI sans aucune fuite.
+  const { ciphertext: _chiffre, ...champsEnClair } = onDisk;
+  check('le nom de l\'enveloppe a disparu du disque', !JSON.stringify(champsEnClair).includes('PEA'));
+  check('le texte clair absent du chiffré décodé',
+    !Buffer.from(onDisk.ciphertext, 'base64').includes(Buffer.from(getJson())));
 
   // ── Aucune écriture ne contourne le chiffrement ──────────────────────────────
   const exported = await storageService.serializeForExport(getJson());
