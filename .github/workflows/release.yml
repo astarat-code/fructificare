@@ -166,14 +166,19 @@ jobs:
       # Compiler ne prouve pas que l'application démarre : une bibliothèque manquante ou
       # une panique au lancement passeraient inaperçues. Toujours vivante après 20 s sur
       # un écran virtuel → `timeout` rend 124. Tout autre code est un arrêt prématuré.
+      # En cas d'échec, la sortie de l'application est publiée en annotation : le journal
+      # d'un job n'est lisible que connecté, une annotation l'est publiquement.
       - name: Tester le lancement
         working-directory: frontend/src-tauri/target/release
         run: |
           set +e
-          xvfb-run -a timeout 20s ./fructificare
+          journal="$RUNNER_TEMP/lancement.log"
+          xvfb-run -a timeout 20s ./fructificare > "$journal" 2>&1
           code=$?
-          if [ "$code" -ne 124 ]; then echo "L'application s'est arrêtée (code $code)"; exit 1; fi
-          echo "L'application tourne toujours après 20 s."
+          if [ "$code" -eq 124 ]; then echo "L'application tourne toujours après 20 s."; exit 0; fi
+          cat "$journal"
+          echo "::error title=Lancement Linux (code $code)::$(tail -n 40 "$journal" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          exit 1
 
       - name: Calculer les empreintes SHA-256
         working-directory: frontend/src-tauri/target/release/bundle
@@ -234,15 +239,19 @@ jobs:
       - name: Tester le lancement
         working-directory: frontend/src-tauri/target/universal-apple-darwin/release/bundle/macos
         run: |
+          set +e
+          journal="$RUNNER_TEMP/lancement.log"
           app=$(ls -d *.app | head -1)
-          "$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)" &
+          "$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)" > "$journal" 2>&1 &
           pid=$!
           sleep 20
           if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid"; echo "L'application tourne toujours après 20 s."
-          else
-            wait "$pid"; echo "L'application s'est arrêtée (code $?)"; exit 1
+            kill "$pid"; echo "L'application tourne toujours après 20 s."; exit 0
           fi
+          wait "$pid"; code=$?
+          cat "$journal"
+          echo "::error title=Lancement macOS (code $code)::$(tail -n 40 "$journal" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+          exit 1
 
       - name: Calculer les empreintes SHA-256
         working-directory: frontend/src-tauri/target/universal-apple-darwin/release/bundle
