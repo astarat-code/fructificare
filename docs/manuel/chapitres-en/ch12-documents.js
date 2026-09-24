@@ -30,7 +30,8 @@ children.push(p([
   t("Like the rest of Fructificare, these files stay stored locally. On import, the PDF is "),
   b('copied'), t(" into a folder of the application: "),
 ]));
-children.push(p([code('%APPDATA%\\app.fructificare.desktop\\documents imp\\')], { spacing: { after: 160 } }));
+children.push(p([code('%APPDATA%\\app.fructificare.desktop\\documents imp\\')], { spacing: { after: 60 } }));
+children.push(p([t("On Linux and macOS, the application folder is elsewhere: see § 14.3.")], { spacing: { after: 160 } }));
 
 children.push(p([
   t("Each envelope gets its own subfolder there; documents not attached to an envelope go into a “global” subfolder."),

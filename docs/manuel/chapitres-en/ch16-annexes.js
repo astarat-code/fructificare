@@ -162,6 +162,7 @@ children.push(tableau(
   ],
   [1800, 7226],
 ));
+children.push(p("On macOS, shortcuts use ⌘ instead of Ctrl; “Quit” is in the Fructificare menu, and the Edit menu also offers Undo, Cut, Copy, Paste and Select All."));
 
 children.push(gap(100));
 children.push(bonASavoir([

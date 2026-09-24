@@ -162,6 +162,7 @@ children.push(tableau(
   ],
   [1800, 7226],
 ));
+children.push(p("Sur macOS, les raccourcis utilisent ⌘ au lieu de Ctrl ; « Quitter » se trouve dans le menu Fructificare, et le menu Éditer propose aussi Annuler, Couper, Copier, Coller et Tout sélectionner."));
 
 children.push(gap(100));
 children.push(bonASavoir([

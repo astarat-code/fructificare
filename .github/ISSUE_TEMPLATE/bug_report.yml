@@ -38,15 +38,15 @@ body:
     id: version
     attributes:
       label: Fructificare version
-      description: Shown in the installer file name, e.g. 0.1.0
+      description: Shown in the installer file name, e.g. 1.1.0
     validations:
       required: true
 
   - type: input
-    id: windows
+    id: os
     attributes:
-      label: Windows version
-      placeholder: Windows 11 24H2
+      label: Operating system and version
+      placeholder: Windows 11 24H2 / Ubuntu 24.04 (AppImage or .deb) / macOS 15
 
   - type: dropdown
     id: language

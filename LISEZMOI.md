@@ -45,17 +45,30 @@ quelque part.
 
 ---
 
-## Installation (Windows)
+## Installation
 
-Téléchargez `Fructificare_x64-setup.exe` depuis la [page des versions](https://github.com/astarat-code/fructificare/releases),
-puis lancez-le. L'installation se fait pour l'utilisateur courant, sans droits administrateur.
+Téléchargez le fichier de votre système depuis la [dernière version](https://github.com/astarat-code/fructificare/releases/latest) :
 
-L'application est distribuée **non signée** : Windows SmartScreen affichera un
-avertissement. Vérifier l'empreinte du fichier est le moyen de s'assurer qu'il est bien
-celui qui a été publié :
+| Système | Fichier | |
+|---|---|---|
+| **Windows** 10 et 11 | `Fructificare_…_x64-setup.exe` | installation pour l'utilisateur courant, sans droits administrateur |
+| **Linux** | `Fructificare_…_amd64.AppImage` | toutes distributions : rendez-le exécutable, puis lancez-le (Ubuntu 24.04+ : installez d'abord `libfuse2`) |
+| | `Fructificare_…_amd64.deb` | Debian, Ubuntu et dérivées |
+| **macOS** 11+ — *expérimental* | `Fructificare_…_universal.dmg` | Intel et Apple Silicon ; glissez Fructificare dans Applications |
 
-```powershell
-Get-FileHash .\Fructificare_x64-setup.exe -Algorithm SHA256
+L'application est distribuée **non signée**. Sous Windows, SmartScreen affiche un
+avertissement la première fois (*Informations complémentaires → Exécuter quand même*). Sous
+macOS, le premier lancement est bloqué jusqu'à ce que vous cliquiez sur *Ouvrir quand même*
+dans *Réglages Système → Confidentialité et sécurité*. La version macOS n'est encore testée
+que par la CI : les retours d'utilisateurs Mac sont les bienvenus.
+
+Vérifier l'empreinte du fichier est le moyen de s'assurer qu'il est bien celui qui a été
+publié :
+
+```bash
+Get-FileHash .\Fructificare_*_x64-setup.exe -Algorithm SHA256   # Windows (PowerShell)
+sha256sum -c SHA256SUMS.txt --ignore-missing                      # Linux
+shasum -a 256 Fructificare_*.dmg                                  # macOS
 ```
 
 Comparez-la avec `SHA256SUMS.txt`, publié à côté de chaque version. Ces empreintes sont
@@ -81,18 +94,22 @@ que le manuel d'utilisation de 82 pages, ouvert par `Aide → Manuel d'utilisati
 
 ## Où sont mes données ?
 
-| Contenu | Emplacement |
+Tout est rangé dans un dossier d'application, avec deux sous-dossiers : `save`
+(sauvegardes automatiques, les 10 dernières) et `documents imp` (documents PDF importés).
+
+| Système | Dossier de l'application |
 |---|---|
-| Sauvegardes automatiques (10 dernières) | `%APPDATA%\app.fructificare.desktop\save\` |
-| Documents PDF importés | `%APPDATA%\app.fructificare.desktop\documents imp\` |
+| Windows | `%APPDATA%\app.fructificare.desktop\` |
+| Linux | `~/.local/share/app.fructificare.desktop/` |
+| macOS | `~/Library/Application Support/app.fructificare.desktop/` |
 
 Les sauvegardes sont des fichiers JSON **en clair par défaut**, donc lisibles par tout
-programme s'exécutant sous votre session Windows. Vous pouvez les chiffrer par une phrase
+programme s'exécutant sous votre session utilisateur. Vous pouvez les chiffrer par une phrase
 secrète : `Paramètres → Sécurité → Chiffrer mes sauvegardes`. Elle vous sera alors demandée
 à chaque ouverture de Fructificare — et **elle ne peut pas être réinitialisée** : si vous
 l'oubliez, vos données sont définitivement irrécupérables.
 
-- **Exportez régulièrement** via `Fichier → Exporter une sauvegarde…` (ou `Ctrl+S`).
+- **Exportez régulièrement** via `Fichier → Exporter une sauvegarde…` (ou `Ctrl+S`, `⌘S` sur macOS).
 - Si vous exportez vers `Documents`, `Bureau` ou `Téléchargements`, sachez que ces dossiers
   sont **synchronisés vers OneDrive par défaut** sur Windows 11 : vos données financières
   partiraient alors vers le cloud Microsoft. Préférez un dossier local ou un conteneur
@@ -120,23 +137,25 @@ l'application ne protège pas, et la procédure de signalement d'une faille.
 Node.js 20 et Rust suffisent. Voir [`CONTRIBUTING.md`](CONTRIBUTING.md) pour
 l'environnement de développement, les suites de tests et le build.
 
-**Prérequis :** Node.js 20 LTS ; Rust + MSVC C++ Build Tools + WebView2 pour le build
-bureau. Windows pour l'application elle-même — l'interface web se compile partout.
+**Prérequis :** Node.js 20 LTS et Rust, plus les bibliothèques système de votre plateforme —
+MSVC C++ Build Tools et WebView2 sous Windows, WebKitGTK sous Linux, Xcode Command Line Tools
+sous macOS (détails dans `CONTRIBUTING.md`). Chaque système compile sa propre application.
 
 ```bash
 cd frontend
 npm ci
 npm run build          # interface web
-npm run tauri build    # application Windows
+npm run tauri build    # application de bureau pour le système courant
 ```
 
 ---
 
 ## État et feuille de route
 
-**v1.0.0 — première version publique.** L'application est complète et utilisée au
-quotidien, mais elle n'a tourné que sur quelques machines. Attendez-vous à des aspérités,
-et signalez-les.
+**v1.1.0 — Linux et macOS.** L'application est complète et utilisée au quotidien, mais elle
+n'a tourné que sur quelques machines. Windows et Linux sont pris en charge ; la version macOS
+reste expérimentale tant que des utilisateurs Mac ne l'ont pas essayée. Attendez-vous à des
+aspérités, et signalez-les.
 
 Ce qui est prévu, dans cet ordre :
 

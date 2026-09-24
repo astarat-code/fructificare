@@ -42,16 +42,28 @@ bank balances. Both would mean sending your credentials somewhere.
 
 ---
 
-## Install (Windows)
+## Install
 
-Download `Fructificare_x64-setup.exe` from the [releases page](https://github.com/astarat-code/fructificare/releases)
-and run it. It installs for the current user, without administrator rights.
+Download the file for your system from the [latest release](https://github.com/astarat-code/fructificare/releases/latest):
 
-Releases are **not code-signed**: Windows SmartScreen will warn you the first time. The
-published SHA-256 fingerprint is how you check the file is the one that was built:
+| System | File | |
+|---|---|---|
+| **Windows** 10 and 11 | `Fructificare_…_x64-setup.exe` | installs for the current user, without administrator rights |
+| **Linux** | `Fructificare_…_amd64.AppImage` | any distribution: make it executable, then run it (Ubuntu 24.04+: install `libfuse2` first) |
+| | `Fructificare_…_amd64.deb` | Debian, Ubuntu and derivatives |
+| **macOS** 11+ — *experimental* | `Fructificare_…_universal.dmg` | Intel and Apple Silicon; drag Fructificare into Applications |
 
-```powershell
-Get-FileHash .\Fructificare_x64-setup.exe -Algorithm SHA256
+Releases are **not code-signed**. Windows SmartScreen warns you the first time (*More info →
+Run anyway*). On macOS, the first launch is blocked until you click *Open Anyway* in *System
+Settings → Privacy & Security*. The macOS version is so far tested only by the CI: reports
+from Mac users are very welcome.
+
+The published SHA-256 fingerprint is how you check the file is the one that was built:
+
+```bash
+Get-FileHash .\Fructificare_*_x64-setup.exe -Algorithm SHA256   # Windows (PowerShell)
+sha256sum -c SHA256SUMS.txt --ignore-missing                      # Linux
+shasum -a 256 Fructificare_*.dmg                                  # macOS
 ```
 
 Compare it with `SHA256SUMS.txt`, published next to each release. Those fingerprints are
@@ -76,17 +88,21 @@ the 82-page user manual, opened from `Help → User manual`.
 
 ## Where your data lives
 
-| Content | Location |
+Everything lives in one application folder, with two subfolders: `save` (automatic
+backups, the last 10) and `documents imp` (imported PDF documents).
+
+| System | Application folder |
 |---|---|
-| Automatic backups (last 10) | `%APPDATA%\app.fructificare.desktop\save\` |
-| Imported PDF documents | `%APPDATA%\app.fructificare.desktop\documents imp\` |
+| Windows | `%APPDATA%\app.fructificare.desktop\` |
+| Linux | `~/.local/share/app.fructificare.desktop/` |
+| macOS | `~/Library/Application Support/app.fructificare.desktop/` |
 
 Backups are JSON files, **in plain text by default**, so any program running under your
-Windows session can read them. You can encrypt them with a passphrase:
+user account can read them. You can encrypt them with a passphrase:
 `Settings → Security → Encrypt my backups`. It will then be asked every time Fructificare
 opens — and **it cannot be reset**: if you forget it, the data is unrecoverable.
 
-- **Export regularly** with `File → Export a backup…` (or `Ctrl+S`).
+- **Export regularly** with `File → Export a backup…` (or `Ctrl+S`, `⌘S` on macOS).
 - On Windows 11, `Documents`, `Desktop` and `Downloads` are often synchronized to OneDrive.
   Exporting an unencrypted backup there sends your finances to the Microsoft cloud. Prefer
   a local folder or an encrypted container (BitLocker, VeraCrypt).
@@ -112,22 +128,24 @@ protect against, and how to report a vulnerability.
 Node.js 20 and Rust are the only prerequisites. See [`CONTRIBUTING.md`](CONTRIBUTING.md)
 for the development setup, the test suites and the build.
 
-**Prerequisites:** Node.js 20 LTS; Rust + MSVC C++ Build Tools + WebView2 for the desktop
-build. Windows for the application itself — the web interface builds anywhere.
+**Prerequisites:** Node.js 20 LTS and Rust, plus the system libraries of your platform —
+MSVC C++ Build Tools and WebView2 on Windows, WebKitGTK on Linux, Xcode Command Line Tools
+on macOS (details in `CONTRIBUTING.md`). Each system builds its own application.
 
 ```bash
 cd frontend
 npm ci
 npm run build          # web interface
-npm run tauri build    # Windows application
+npm run tauri build    # desktop application for the current system
 ```
 
 ---
 
 ## Status and roadmap
 
-**v1.0.0 — first public release.** The application is feature-complete and used daily, but
-it has only run on a handful of machines. Expect rough edges, and please report them.
+**v1.1.0 — Linux and macOS.** The application is feature-complete and used daily, but it
+has only run on a handful of machines. Windows and Linux are supported; the macOS version is
+experimental until Mac users have tried it. Expect rough edges, and please report them.
 
 What is planned, in order:
 
