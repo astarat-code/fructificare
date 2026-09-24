@@ -31,6 +31,13 @@ on:
   push:
     tags: ['v*']
   workflow_dispatch:
+  # Une pull request qui touche la partie native ou ce fichier compile et lance les trois
+  # versions avant la fusion, au lieu de le découvrir au moment du tag. Rien n'est publié :
+  # `publier` ne s'exécute que sur un tag, et ces jobs n'ont qu'un jeton en lecture.
+  pull_request:
+    paths:
+      - 'frontend/src-tauri/**'
+      - '.github/workflows/release.yml'
 
 # Défaut restrictif : chaque job ré-accorde ce dont il a besoin, et rien de plus.
 permissions:
@@ -168,17 +175,24 @@ jobs:
       # un écran virtuel → `timeout` rend 124. Tout autre code est un arrêt prématuré.
       # En cas d'échec, la sortie de l'application est publiée en annotation : le journal
       # d'un job n'est lisible que connecté, une annotation l'est publiquement.
+      # Deux lancements : le binaire tel que l'installe le .deb, puis l'AppImage, qui emporte
+      # ses propres bibliothèques et peut donc échouer là où le binaire réussit.
+      # APPIMAGE_EXTRACT_AND_RUN : le runner n'a pas FUSE, l'AppImage s'extrait et se lance.
       - name: Tester le lancement
         working-directory: frontend/src-tauri/target/release
         run: |
           set +e
-          journal="$RUNNER_TEMP/lancement.log"
-          xvfb-run -a timeout 20s ./fructificare > "$journal" 2>&1
-          code=$?
-          if [ "$code" -eq 124 ]; then echo "L'application tourne toujours après 20 s."; exit 0; fi
-          cat "$journal"
-          echo "::error title=Lancement Linux (code $code)::$(tail -n 40 "$journal" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
-          exit 1
+          echec=0
+          for cible in ./fructificare bundle/appimage/*.AppImage; do
+            journal="$RUNNER_TEMP/lancement-$(basename "$cible").log"
+            APPIMAGE_EXTRACT_AND_RUN=1 xvfb-run -a timeout 20s "$cible" > "$journal" 2>&1
+            code=$?
+            if [ "$code" -eq 124 ]; then echo "$cible tourne toujours après 20 s."; continue; fi
+            cat "$journal"
+            echo "::error title=Lancement Linux, $(basename "$cible") (code $code)::$(tail -n 40 "$journal" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
+            echec=1
+          done
+          exit $echec
 
       - name: Calculer les empreintes SHA-256
         working-directory: frontend/src-tauri/target/release/bundle
@@ -236,19 +250,31 @@ jobs:
         working-directory: frontend/src-tauri
         run: cargo test --lib
 
+      # Lance l'application depuis le .dmg lui-même, comme le fera l'utilisateur : c'est le
+      # fichier distribué qui est testé, pas une copie intermédiaire du dossier de build
+      # (avec --bundles dmg, Tauri ne laisse d'ailleurs aucun .app dans bundle/macos).
       - name: Tester le lancement
-        working-directory: frontend/src-tauri/target/universal-apple-darwin/release/bundle/macos
+        working-directory: frontend/src-tauri/target/universal-apple-darwin/release/bundle
         run: |
           set +e
           journal="$RUNNER_TEMP/lancement.log"
-          app=$(ls -d *.app | head -1)
-          "$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)" > "$journal" 2>&1 &
+          volume="$RUNNER_TEMP/volume"
+          mkdir -p "$volume"
+          hdiutil attach dmg/*.dmg -nobrowse -readonly -mountpoint "$volume" > "$journal" 2>&1
+          app=$(find "$volume" -maxdepth 1 -name '*.app' | head -1)
+          if [ -z "$app" ]; then
+            echo "::error title=Lancement macOS::aucune application dans le .dmg%0A$(ls -la "$volume" dmg | awk '{printf "%s%%0A", $0}')"
+            exit 1
+          fi
+          "$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)" >> "$journal" 2>&1 &
           pid=$!
           sleep 20
           if kill -0 "$pid" 2>/dev/null; then
-            kill "$pid"; echo "L'application tourne toujours après 20 s."; exit 0
+            kill "$pid"; sleep 2; hdiutil detach "$volume" -force > /dev/null
+            echo "L'application tourne toujours après 20 s."; exit 0
           fi
           wait "$pid"; code=$?
+          hdiutil detach "$volume" -force > /dev/null
           cat "$journal"
           echo "::error title=Lancement macOS (code $code)::$(tail -n 40 "$journal" | sed 's/%/%25/g' | awk '{printf "%s%%0A", $0}')"
           exit 1

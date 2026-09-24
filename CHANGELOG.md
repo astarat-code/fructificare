@@ -19,8 +19,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **macOS menus** — an application menu (About, Hide, Quit) and the standard editing
   commands in *Edit*: without them, ⌘C and ⌘V do not work in the text fields of a macOS
   web view.
-- **Launch test in CI** — the Linux and macOS builds are started for 20 seconds after
-  compilation; a crash at startup fails the release.
+- **Launch test in CI** — the Linux binary, the AppImage and the app inside the `.dmg` are
+  started for 20 seconds after compilation; a crash at startup fails the release. The
+  release workflow also runs on pull requests that touch the native code.
 
 ### Changed
 
