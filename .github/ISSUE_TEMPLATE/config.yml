@@ -3,6 +3,9 @@ contact_links:
   - name: Report a security vulnerability
     url: https://github.com/astarat-code/fructificare/security/advisories/new
     about: Private advisory. Never report a vulnerability in a public issue.
+  - name: Frequently asked questions
+    url: https://fructificare.fr/faq/
+    about: Common questions, answered on the website.
   - name: Question or idea
     url: https://github.com/astarat-code/fructificare/discussions
     about: For anything that is not a bug or a precise feature request.

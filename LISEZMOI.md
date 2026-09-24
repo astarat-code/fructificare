@@ -3,10 +3,11 @@
 **Suivi et simulation de portefeuille d'investissement, hors ligne**, pensé pour les
 investisseurs français (PEA, CTO, assurance-vie, PER, livrets réglementés).
 
-*English: [README.md](README.md).*
+**Site : [fructificare.fr](https://fructificare.fr)** · *English: [README.md](README.md).*
 
 [![CI](https://github.com/astarat-code/fructificare/actions/workflows/ci.yml/badge.svg)](https://github.com/astarat-code/fructificare/actions/workflows/ci.yml)
 [![Licence : AGPL v3](https://img.shields.io/badge/Licence-AGPL%20v3-blue.svg)](LICENSE)
+[![Site](https://img.shields.io/badge/site-fructificare.fr-EFAD24)](https://fructificare.fr)
 
 **100 % locale.** Aucune donnée ne quitte votre ordinateur : pas de compte, pas de serveur,
 pas de télémétrie. L'application ne contacte le réseau pour aucune de ses fonctions — les
@@ -47,7 +48,8 @@ quelque part.
 
 ## Installation
 
-Téléchargez le fichier de votre système depuis la [dernière version](https://github.com/astarat-code/fructificare/releases/latest) :
+Téléchargez le fichier de votre système depuis [fructificare.fr](https://fructificare.fr), ou directement depuis la
+[dernière version](https://github.com/astarat-code/fructificare/releases/latest) :
 
 | Système | Fichier | |
 |---|---|---|
