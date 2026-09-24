@@ -7,6 +7,28 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-09-24
+
+### Added
+
+- **Linux** — an AppImage for any distribution and a `.deb` for Debian, Ubuntu and
+  derivatives, built on Ubuntu 22.04 for wide compatibility.
+- **macOS (experimental)** — a universal `.dmg` for Intel and Apple Silicon, ad-hoc signed
+  but not notarized by Apple. It is built and launched by the CI; it has not been tried on
+  real Macs yet.
+- **macOS menus** — an application menu (About, Hide, Quit) and the standard editing
+  commands in *Edit*: without them, ⌘C and ⌘V do not work in the text fields of a macOS
+  web view.
+- **Launch test in CI** — the Linux and macOS builds are started for 20 seconds after
+  compilation; a crash at startup fails the release.
+
+### Changed
+
+- Settings messages, the user manual (§ 12, § 14.3, § 16.6), the README and the security
+  documentation no longer assume Windows: data folders, rendering engine and shortcuts are
+  given for each system.
+- `SHA256SUMS.txt` now lists the files of the three systems.
+
 ## [1.0.1] — 2026-09-23
 
 ### Changed
@@ -55,6 +77,7 @@ First public release.
 - **Public build chain** — CI-built Windows binaries with published SHA-256 fingerprints,
   actions pinned by commit hash, write token isolated in a job that compiles nothing.
 
-[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/astarat-code/fructificare/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/astarat-code/fructificare/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/astarat-code/fructificare/releases/tag/v1.0.0
