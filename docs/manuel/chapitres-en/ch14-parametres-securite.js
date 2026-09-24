@@ -47,13 +47,19 @@ children.push(bullet([b('Envelope colors'), t(" — switches between the "), i('
 // ── 14.3 ───────────────────────────────────────────────────────────────────
 children.push(h2('14.3  Where your data lives'));
 
+children.push(p([
+  t("Everything lives in the application folder: automatic backups in its "),
+  code('save'), t(" subfolder, imported PDF documents in "), code('documents imp'), t('.'),
+]));
+
 children.push(tableau(
-  ['Content', 'Location'],
+  ['System', 'Application folder'],
   [
-    ['Automatic backups', '%APPDATA%\\app.fructificare.desktop\\save\\'],
-    ['Imported PDF documents', '%APPDATA%\\app.fructificare.desktop\\documents imp\\'],
+    ['Windows', '%APPDATA%\\app.fructificare.desktop\\'],
+    ['Linux', '~/.local/share/app.fructificare.desktop/'],
+    ['macOS', '~/Library/Application Support/app.fructificare.desktop/'],
   ],
-  [3000, 6026],
+  [2000, 7026],
 ));
 
 children.push(p([
@@ -81,7 +87,7 @@ children.push(h2('14.4  Encrypting your backups'));
 
 children.push(p([
   t("By default, your backups are JSON files "), b('in plain text'),
-  t(": any program running under your Windows session can open them and read your wealth, your deposits and your goals. "),
+  t(": any program running under your user account can open them and read your wealth, your deposits and your goals. "),
   t("You can encrypt your backups to prevent this."),
 ]));
 

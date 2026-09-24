@@ -28,7 +28,7 @@ serveur. Elle n'expose aucun port et n'émet aucune requête réseau.
 
 ### Ce contre quoi l'application NE protège PAS
 
-- **Un attaquant ayant déjà accès à votre session Windows, si le chiffrement est désactivé.**
+- **Un attaquant ayant déjà accès à votre session utilisateur, si le chiffrement est désactivé.**
   Par défaut les sauvegardes sont stockées en clair et tout programme s'exécutant sous votre
   compte peut les lire. Activez le chiffrement dans `Paramètres → Sécurité` (voir plus bas),
   ou placez vos exports dans un conteneur chiffré (BitLocker, VeraCrypt).
@@ -38,8 +38,9 @@ serveur. Elle n'expose aucun port et n'émet aucune requête réseau.
 - **La synchronisation cloud.** Si vous exportez vers `Documents`, `Bureau` ou
   `Téléchargements`, OneDrive peut téléverser vos données financières. C'est un réglage
   Windows, hors de portée de l'application.
-- **Une faille du moteur d'affichage.** L'interface s'exécute dans WebView2, fourni par
-  Microsoft. Sa sécurité dépend de vos mises à jour Windows (voir « Le moteur d'affichage »).
+- **Une faille du moteur d'affichage.** L'interface s'exécute dans le moteur web du
+  système — WebView2 sous Windows, WebKitGTK sous Linux, WebKit sous macOS. Sa sécurité
+  dépend de vos mises à jour système (voir « Le moteur d'affichage »).
 - **Un binaire redistribué.** Les versions publiées ne sont pas signées à ce jour. Vérifiez
   systématiquement l'empreinte SHA-256 publiée à côté de chaque version.
 
@@ -154,21 +155,26 @@ pour les crates Rust. Ce dernier échoue sur une vulnérabilité, mais pas sur l
 « crate non maintenue » : l'arbre Tauri en traîne plusieurs, qu'aucune modification de ce
 dépôt ne peut lever. Une CI rouge en permanence n'apprendrait qu'à ignorer l'alerte.
 
-## Le moteur d'affichage : WebView2
+## Le moteur d'affichage
 
-Fructificare n'embarque pas son propre navigateur. Toute l'interface est rendue par
-**WebView2**, le moteur fourni, installé et mis à jour par Microsoft avec Windows.
-L'application se réduit à un peu de code Rust qui ouvre une fenêtre, et à du JavaScript
-qui s'exécute *à l'intérieur de ce moteur*.
+Fructificare n'embarque pas son propre navigateur. Toute l'interface est rendue par le
+moteur web du système : **WebView2** sous Windows, **WebKitGTK** sous Linux, **WebKit**
+sous macOS. L'application se réduit à un peu de code Rust qui ouvre une fenêtre, et à du
+JavaScript qui s'exécute *à l'intérieur de ce moteur*.
 
-Conséquence directe : **une faille de WebView2 est une faille de Fructificare.** Le bac à
+Conséquence directe : **une faille de ce moteur est une faille de Fructificare.** Le bac à
 sable des processus, l'isolation des origines, l'interpréteur JavaScript, le rendu des
-polices et des images appartiennent à Microsoft, pas à ce dépôt. Aucun correctif publié
+polices et des images appartiennent à Microsoft, à la distribution Linux ou à Apple, pas à
+ce dépôt. Aucun correctif publié
 ici ne peut compenser un moteur vulnérable — et la Content-Security-Policy décrite plus
 haut n'est appliquée que parce que le moteur l'applique.
 
-**Mettre Windows à jour fait donc partie de la sécurité de Fructificare**, au même titre
-que choisir une phrase secrète solide. WebView2 est mis à jour automatiquement par le même
+**Mettre le système à jour fait donc partie de la sécurité de Fructificare**, au même titre
+que choisir une phrase secrète solide.
+
+### Windows : WebView2
+
+WebView2 est fourni, installé et mis à jour par Microsoft. Il est mis à jour automatiquement par le même
 canal que Windows et Microsoft Edge. Une machine dont Windows Update est désactivé, ou dont
 les redémarrages sont repoussés depuis des mois, exécute Fructificare sur un moteur dont
 les failles sont déjà publiques.
@@ -181,6 +187,20 @@ Pour connaître la version installée :
 
 Elle doit suivre de près la version stable de Microsoft Edge. Si elle a plusieurs mois de
 retard, lancez Windows Update avant d'y saisir vos données financières.
+
+### Linux : WebKitGTK
+
+Le paquet **`.deb`** utilise le WebKitGTK du système, mis à jour par la distribution avec
+le reste (`apt upgrade`). L'**AppImage** emporte sa propre copie des bibliothèques dont il a
+besoin, figée au moment du build de la version : il ne reçoit les correctifs du moteur
+qu'avec une nouvelle version de Fructificare. Sous Debian, Ubuntu et dérivées, préférez le
+`.deb`.
+
+### macOS : WebKit
+
+WebKit fait partie de macOS et se met à jour avec lui (*Réglages Système → Général → Mise à
+jour de logiciels*). La version macOS est expérimentale : elle est compilée et lancée par la
+CI, mais n'a pas encore été examinée sur de vraies machines.
 
 ## Comment ce logiciel est construit et publié
 

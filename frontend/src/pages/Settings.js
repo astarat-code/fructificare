@@ -488,8 +488,8 @@ export default function Settings({ onDataChange }) {
           </CardTitle>
           <CardDescription className="mt-1">
             {lang === 'fr'
-              ? "Par défaut, vos sauvegardes sont enregistrées en clair : tout programme lancé sous votre session Windows peut les lire."
-              : 'By default your backups are stored in plain text: any program running under your Windows session can read them.'}
+              ? "Par défaut, vos sauvegardes sont enregistrées en clair : tout programme lancé sous votre session utilisateur peut les lire."
+              : 'By default your backups are stored in plain text: any program running under your user account can read them.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -878,8 +878,8 @@ export default function Settings({ onDataChange }) {
             </DialogTitle>
             <DialogDescription>
               {lang === 'fr'
-                ? "Vos prochaines sauvegardes seront écrites en clair dans le dossier de l'application, lisibles par tout programme lancé sous votre session Windows. Saisissez votre phrase secrète pour confirmer."
-                : 'Future backups will be written in plain text in the application folder, readable by any program running under your Windows session. Enter your passphrase to confirm.'}
+                ? "Vos prochaines sauvegardes seront écrites en clair dans le dossier de l'application, lisibles par tout programme lancé sous votre session utilisateur. Saisissez votre phrase secrète pour confirmer."
+                : 'Future backups will be written in plain text in the application folder, readable by any program running under your user account. Enter your passphrase to confirm.'}
             </DialogDescription>
           </DialogHeader>
           <form

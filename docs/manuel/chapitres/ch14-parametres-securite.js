@@ -47,13 +47,19 @@ children.push(bullet([b('Couleurs des enveloppes'), t(" — bascule entre la pal
 // ── 14.3 ───────────────────────────────────────────────────────────────────
 children.push(h2('14.3  Où sont vos données'));
 
+children.push(p([
+  t("Tout est rangé dans le dossier de l'application : les sauvegardes automatiques dans son sous-dossier "),
+  code('save'), t(", les documents PDF importés dans "), code('documents imp'), t('.'),
+]));
+
 children.push(tableau(
-  ['Contenu', 'Emplacement'],
+  ['Système', "Dossier de l'application"],
   [
-    ['Sauvegardes automatiques', '%APPDATA%\\app.fructificare.desktop\\save\\'],
-    ['Documents PDF importés', '%APPDATA%\\app.fructificare.desktop\\documents imp\\'],
+    ['Windows', '%APPDATA%\\app.fructificare.desktop\\'],
+    ['Linux', '~/.local/share/app.fructificare.desktop/'],
+    ['macOS', '~/Library/Application Support/app.fructificare.desktop/'],
   ],
-  [3000, 6026],
+  [2000, 7026],
 ));
 
 children.push(p([
@@ -81,7 +87,7 @@ children.push(h2('14.4  Chiffrer vos sauvegardes'));
 
 children.push(p([
   t("Par défaut, vos sauvegardes sont des fichiers JSON "), b('en clair'),
-  t(" : n'importe quel programme lancé sous votre session Windows peut les ouvrir et y lire votre patrimoine, vos versements et vos objectifs. "),
+  t(" : n'importe quel programme lancé sous votre session utilisateur peut les ouvrir et y lire votre patrimoine, vos versements et vos objectifs. "),
   t("Vous pouvez chiffrer vos sauvegardes pour éviter cela."),
 ]));
 

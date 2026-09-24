@@ -29,9 +29,14 @@ first — it avoids work that does not fit the scope.
 ## Prerequisites
 
 - **Node.js 20 LTS**
-- **Rust** (`winget install Rustlang.Rustup`) plus the MSVC C++ Build Tools and WebView2 —
-  only needed for the desktop build
-- **Windows** for the desktop application; the web interface builds anywhere
+- **Rust** — only needed for the desktop build, with the system libraries of your platform:
+  - **Windows:** `winget install Rustlang.Rustup`, the MSVC C++ Build Tools and WebView2
+  - **Linux (Debian/Ubuntu):** `sudo apt install libwebkit2gtk-4.1-dev libappindicator3-dev
+    librsvg2-dev patchelf`
+  - **macOS:** `xcode-select --install`
+- Each system builds its own desktop application; the web interface builds anywhere. The
+  macOS version is experimental: changes that touch the native side (menu, windows, files)
+  are welcome with a test on a real Mac.
 
 ---
 

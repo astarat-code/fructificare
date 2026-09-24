@@ -27,7 +27,7 @@ It opens no port and makes no network request.
 
 ### What the application does NOT protect against
 
-- **An attacker already inside your Windows session, if encryption is off.** By default
+- **An attacker already inside your user session, if encryption is off.** By default
   backups are stored in plain text and any program running under your account can read them.
   Turn encryption on in `Settings → Security` (see below), or keep your exports in an
   encrypted container (BitLocker, VeraCrypt).
@@ -36,8 +36,9 @@ It opens no port and makes no network request.
   passphrase every two seconds.
 - **Cloud synchronization.** If you export to `Documents`, `Desktop` or `Downloads`, OneDrive
   may upload your financial data. That is a Windows setting, outside the application's reach.
-- **A flaw in the rendering engine.** The interface runs inside WebView2, supplied by
-  Microsoft. Its security depends on your Windows updates (see "The rendering engine").
+- **A flaw in the rendering engine.** The interface runs inside the system's web engine —
+  WebView2 on Windows, WebKitGTK on Linux, WebKit on macOS. Its security depends on your
+  system updates (see "The rendering engine").
 - **A redistributed binary.** Published releases are not signed to this day. Always check
   the SHA-256 fingerprint published next to each release.
 
@@ -148,20 +149,25 @@ crates. The latter fails on vulnerabilities, but not on "unmaintained crate" adv
 Tauri tree carries several that no change in this repository can lift. A permanently red CI
 only teaches people to ignore the alert.
 
-## The rendering engine: WebView2
+## The rendering engine
 
-Fructificare does not ship its own browser. The whole interface is rendered by **WebView2**,
-the engine supplied, installed and updated by Microsoft along with Windows. The application
-amounts to a little Rust code opening a window, and JavaScript running *inside that engine*.
+Fructificare does not ship its own browser. The whole interface is rendered by the web
+engine of the system: **WebView2** on Windows, **WebKitGTK** on Linux, **WebKit** on macOS.
+The application amounts to a little Rust code opening a window, and JavaScript running
+*inside that engine*.
 
-The direct consequence: **a WebView2 vulnerability is a Fructificare vulnerability.** The
-process sandbox, origin isolation, the JavaScript engine, font and image rendering belong to
-Microsoft, not to this repository. No fix published here can compensate for a vulnerable
+The direct consequence: **a vulnerability in that engine is a Fructificare vulnerability.**
+The process sandbox, origin isolation, the JavaScript engine, font and image rendering belong
+to Microsoft, to the Linux distribution or to Apple, not to this repository. No fix published here can compensate for a vulnerable
 engine — and the Content-Security-Policy described above applies only because the engine
 applies it.
 
-**Keeping Windows up to date is therefore part of Fructificare's security**, as much as
-choosing a strong passphrase. WebView2 is updated automatically through the same channel as
+**Keeping the system up to date is therefore part of Fructificare's security**, as much as
+choosing a strong passphrase.
+
+### Windows: WebView2
+
+WebView2 is supplied, installed and updated by Microsoft. It is updated automatically through the same channel as
 Windows and Microsoft Edge. A machine with Windows Update disabled, or with reboots deferred
 for months, runs Fructificare on an engine whose flaws are already public.
 
@@ -173,6 +179,19 @@ To check the installed version:
 
 It should closely follow the stable version of Microsoft Edge. If it is months behind, run
 Windows Update before entering financial data.
+
+### Linux: WebKitGTK
+
+The **`.deb`** package uses the WebKitGTK of the system, updated by the distribution along
+with the rest of it (`apt upgrade`). The **AppImage** carries its own copy of the libraries
+it needs, frozen when the release was built: it only receives engine fixes with a new
+Fructificare release. On Debian, Ubuntu and derivatives, prefer the `.deb`.
+
+### macOS: WebKit
+
+WebKit is part of macOS and is updated with it (*System Settings → General → Software
+Update*). The macOS version is experimental: it is built and launched by the CI, but has not
+yet been reviewed on real machines.
 
 ## How this software is built and published
 
