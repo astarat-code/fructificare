@@ -3,10 +3,11 @@
 **Offline portfolio tracker and simulator for French investors** (PEA, brokerage account,
 life insurance, PER, regulated savings accounts).
 
-*Français : [LISEZMOI.md](LISEZMOI.md).*
+**Website: [fructificare.fr](https://fructificare.fr/en/)** · *Français : [LISEZMOI.md](LISEZMOI.md).*
 
 [![CI](https://github.com/astarat-code/fructificare/actions/workflows/ci.yml/badge.svg)](https://github.com/astarat-code/fructificare/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+[![Website](https://img.shields.io/badge/website-fructificare.fr-EFAD24)](https://fructificare.fr/en/)
 
 **100% local.** No account, no server, no telemetry. The application makes no network
 request for any of its features — fonts and the user manual are embedded in the binary,
@@ -44,7 +45,8 @@ bank balances. Both would mean sending your credentials somewhere.
 
 ## Install
 
-Download the file for your system from the [latest release](https://github.com/astarat-code/fructificare/releases/latest):
+Download the file for your system from [fructificare.fr](https://fructificare.fr/en/), or directly from the
+[latest release](https://github.com/astarat-code/fructificare/releases/latest):
 
 | System | File | |
 |---|---|---|
