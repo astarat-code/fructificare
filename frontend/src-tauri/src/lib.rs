@@ -2,10 +2,10 @@
 // Copyright (C) 2026 astarat-code
 //! Fructificare — Tauri entry point (desktop).
 //!
-//! Builds the native menu bar (File / Edit / View / Help), translated to the display
-//! language, and relays every click to the frontend through the `menu-action` event (the
-//! logic — saving, theme, language, navigation — lives on the React side, where the
-//! application's state is).
+//! Builds the native menu bar (File / Edit / View / Help, preceded on macOS by the
+//! application menu), translated to the display language, and relays every click to the
+//! frontend through the `menu-action` event (the logic — saving, theme, language,
+//! navigation — lives on the React side, where the application's state is).
 
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Runtime, Url, WebviewWindowBuilder};
@@ -54,7 +54,8 @@ fn construire_menu<R: Runtime>(handle: &AppHandle<R>, anglais: bool) -> tauri::R
     let l = |fr: &'static str, en: &'static str| if anglais { en } else { fr };
 
     // ── Fichier ────────────────────────────────────────────────────────
-    let file = SubmenuBuilder::new(handle, l("Fichier", "File"))
+    #[allow(unused_mut)]
+    let mut file = SubmenuBuilder::new(handle, l("Fichier", "File"))
         .item(&MenuItemBuilder::with_id("new", l("Nouveau", "New")).accelerator("CmdOrCtrl+N").build(handle)?)
         .separator()
         .item(
@@ -66,13 +67,35 @@ fn construire_menu<R: Runtime>(handle: &AppHandle<R>, anglais: bool) -> tauri::R
         .item(&MenuItemBuilder::with_id("import", l("Importer une sauvegarde…", "Import a backup…")).build(handle)?)
         .item(&MenuItemBuilder::with_id("recent-files", l("Fichiers récents…", "Recent files…")).build(handle)?)
         .separator()
-        .item(&MenuItemBuilder::with_id("settings", l("Paramètres", "Settings")).build(handle)?)
-        .separator()
-        .item(&PredefinedMenuItem::quit(handle, Some(l("Quitter", "Quit")))?)
-        .build()?;
+        .item(&MenuItemBuilder::with_id("settings", l("Paramètres", "Settings")).build(handle)?);
+    // Sur macOS, « Quitter » appartient au menu de l'application (voir plus bas).
+    #[cfg(not(target_os = "macos"))]
+    {
+        file = file
+            .separator()
+            .item(&PredefinedMenuItem::quit(handle, Some(l("Quitter", "Quit")))?);
+    }
+    let file = file.build()?;
 
     // ── Éditer ─────────────────────────────────────────────────────────
-    let edit = SubmenuBuilder::new(handle, l("Éditer", "Edit"))
+    #[allow(unused_mut)]
+    let mut edit = SubmenuBuilder::new(handle, l("Éditer", "Edit"));
+    // La webview de macOS n'exécute ⌘Z, ⌘X, ⌘C, ⌘V et ⌘A que si le menu Édition porte ces
+    // commandes : sans elles, impossible de coller une phrase secrète ou un montant.
+    // Windows et Linux gèrent ces raccourcis dans la webview elle-même.
+    #[cfg(target_os = "macos")]
+    {
+        edit = edit
+            .item(&PredefinedMenuItem::undo(handle, Some(l("Annuler", "Undo")))?)
+            .item(&PredefinedMenuItem::redo(handle, Some(l("Rétablir", "Redo")))?)
+            .separator()
+            .item(&PredefinedMenuItem::cut(handle, Some(l("Couper", "Cut")))?)
+            .item(&PredefinedMenuItem::copy(handle, Some(l("Copier", "Copy")))?)
+            .item(&PredefinedMenuItem::paste(handle, Some(l("Coller", "Paste")))?)
+            .item(&PredefinedMenuItem::select_all(handle, Some(l("Tout sélectionner", "Select All")))?)
+            .separator();
+    }
+    let edit = edit
         .item(&MenuItemBuilder::with_id("glossary", l("Glossaire", "Glossary")).build(handle)?)
         .build()?;
 
@@ -95,9 +118,26 @@ fn construire_menu<R: Runtime>(handle: &AppHandle<R>, anglais: bool) -> tauri::R
         .item(&MenuItemBuilder::with_id("manual", l("Manuel d'utilisation", "User manual")).build(handle)?)
         .build()?;
 
-    MenuBuilder::new(handle)
-        .items(&[&file, &edit, &view, &help])
-        .build()
+    #[allow(unused_mut)]
+    let mut barre = MenuBuilder::new(handle);
+    // Sur macOS, le premier menu est toujours celui de l'application, titré d'après elle :
+    // sans ce menu dédié, « Fichier » en prendrait la place.
+    #[cfg(target_os = "macos")]
+    {
+        let application = SubmenuBuilder::new(handle, "Fructificare")
+            .item(&PredefinedMenuItem::about(handle, Some(l("À propos de Fructificare", "About Fructificare")), None)?)
+            .separator()
+            .item(&PredefinedMenuItem::services(handle, Some(l("Services", "Services")))?)
+            .separator()
+            .item(&PredefinedMenuItem::hide(handle, Some(l("Masquer Fructificare", "Hide Fructificare")))?)
+            .item(&PredefinedMenuItem::hide_others(handle, Some(l("Masquer les autres", "Hide Others")))?)
+            .item(&PredefinedMenuItem::show_all(handle, Some(l("Tout afficher", "Show All")))?)
+            .separator()
+            .item(&PredefinedMenuItem::quit(handle, Some(l("Quitter Fructificare", "Quit Fructificare")))?)
+            .build()?;
+        barre = barre.item(&application);
+    }
+    barre.items(&[&file, &edit, &view, &help]).build()
 }
 
 /// Traduit la barre de menu quand l'utilisateur change de langue. Toute valeur autre
