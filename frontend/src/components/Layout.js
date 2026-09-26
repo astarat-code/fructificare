@@ -657,7 +657,10 @@ export default function Layout({ children }) {
       <DataFolderDialog
         open={dataFolder.open}
         mode={dataFolder.mode}
-        onClose={() => setDataFolder((d) => ({ ...d, open: false }))}
+        onClose={() => {
+          if (dataFolder.mode === "first-run") window.dispatchEvent(new Event("fructificare-data-folder-done"));
+          setDataFolder((d) => ({ ...d, open: false }));
+        }}
       />
       <ConfirmDialog
         open={viderConfirm.open}
