@@ -65,7 +65,11 @@ children.push(bonASavoir([
 ]));
 
 children.push(h3('macOS et Linux'));
-children.push(p("Aucune version packagée n'est distribuée pour l'instant. Le code étant ouvert, ces plateformes peuvent être compilées depuis les sources (voir CONTRIBUTING.md dans le dépôt)."));
+children.push(p([
+  t("Sous Linux, deux formats sont publiés : "), code('.deb'), t(" pour Debian, Ubuntu et leurs dérivées (recommandé), et "),
+  code('.AppImage'), t(" pour toute distribution. Sous macOS, un "), code('.dmg'),
+  t(" universel est proposé à titre expérimental : il n'est pas notarié par Apple, qui demandera une confirmation à la première ouverture."),
+]));
 
 children.push(h2("1.3  Lancer l'application"));
 children.push(p([
@@ -85,14 +89,23 @@ children.push(p([
 children.push(gap(120));
 children.push(bonASavoir([
   new TextRun({ text: 'Prenez l’habitude d’exporter votre fichier de temps en temps (', size: 21 }),
-  new TextRun({ text: 'Paramètres → Exporter les données', size: 21, bold: true, color: GREEN }),
+  new TextRun({ text: 'Fichier → Exporter une sauvegarde…', size: 21, bold: true, color: GREEN }),
   new TextRun({ text: ') et de le ranger ailleurs que sur le disque de travail : clé USB, disque externe, espace de stockage personnel.', size: 21 }),
 ]));
 
 children.push(h2('1.5  Le premier lancement'));
-children.push(p("Au tout premier démarrage, Fructificare vous souhaite la bienvenue et vous propose son tutoriel intégré. Cliquez sur « Continuer » : la fenêtre ne réapparaîtra plus."));
+children.push(p("Au tout premier démarrage, un assistant vous pose deux questions avant toute chose."));
+children.push(step([b('Où ranger vos données ?'), t(" Le dossier de l'application convient à la plupart des cas. Choisissez plutôt "), ui('Un dossier de mon choix…'), t(" pour garder vos sauvegardes à portée de main : un sous-dossier « Fructificare » y est créé, qui recevra automatiquement vos sauvegardes et les PDF que vous importerez. Si vous désignez un dossier « Fructificare » existant — sur une clé USB, après une réinstallation —, ses sauvegardes sont reprises.")], 5));
+children.push(step([b('Chiffrer vos sauvegardes ?'), t(" Oui, avec une phrase secrète qui vous sera demandée à chaque ouverture ; ou pas maintenant (voir le § 14.4).")], 5));
+children.push(p([
+  t("Ces deux réglages restent modifiables à tout moment par "), ui('Fichier > Dossier des données et chiffrement…'),
+  t(" (§ 14.3)."),
+]));
 children.push(gap(100));
-children.push(...figure('1.1', 'La fenêtre de bienvenue',
+children.push(...figure('1.1', "L'assistant du premier lancement", "", ['Le dossier des données', 'Le chiffrement']));
+children.push(p("Fructificare vous souhaite ensuite la bienvenue et vous propose son tutoriel intégré. Cliquez sur « Continuer » : la fenêtre ne réapparaîtra plus."));
+children.push(gap(100));
+children.push(...figure('1.2', 'La fenêtre de bienvenue',
   "la fenêtre modale de bienvenue telle qu’elle s’affiche au premier lancement, sur un tableau de bord encore vide en arrière-plan (flou ou assombri par la modale)."));
 
 children.push(h2('1.6  Le vocabulaire de Fructificare'));
@@ -126,7 +139,7 @@ children.push(p([
   ui('Trophées'), t(' (chapitre 13).'),
 ]));
 children.push(gap(100));
-children.push(...figure('1.2', 'Le bandeau « Tutoriel » du tableau de bord',
+children.push(...figure('1.3', 'Le bandeau « Tutoriel » du tableau de bord',
   "le bandeau déplié en haut du tableau de bord, montrant la mission en cours, sa description et le bouton « Comment compléter ? »."));
 
 children.push(p([b('Le parcours en quatorze missions')]));

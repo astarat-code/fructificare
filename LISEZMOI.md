@@ -96,10 +96,13 @@ que le manuel d'utilisation de 82 pages, ouvert par `Aide → Manuel d'utilisati
 
 ## Où sont mes données ?
 
-Tout est rangé dans un dossier d'application, avec deux sous-dossiers : `save`
-(sauvegardes automatiques, les 10 dernières) et `documents imp` (documents PDF importés).
+Tout est rangé dans un dossier des données, avec deux sous-dossiers : `save` (sauvegardes
+automatiques, les 10 dernières) et `documents imp` (documents PDF importés). Au premier
+lancement, un assistant vous laisse garder le dossier de l'application ou choisir le vôtre
+(un sous-dossier `Fructificare` y est créé), et décider du chiffrement. Les deux se modifient
+ensuite par `Fichier → Dossier des données et chiffrement…` ; les données suivent.
 
-| Système | Dossier de l'application |
+| Système | Dossier par défaut |
 |---|---|
 | Windows | `%APPDATA%\app.fructificare.desktop\` |
 | Linux | `~/.local/share/app.fructificare.desktop/` |
@@ -109,7 +112,8 @@ Les sauvegardes sont des fichiers JSON **en clair par défaut**, donc lisibles p
 programme s'exécutant sous votre session utilisateur. Vous pouvez les chiffrer par une phrase
 secrète : `Paramètres → Sécurité → Chiffrer mes sauvegardes`. Elle vous sera alors demandée
 à chaque ouverture de Fructificare — et **elle ne peut pas être réinitialisée** : si vous
-l'oubliez, vos données sont définitivement irrécupérables.
+l'oubliez, vos données sont définitivement irrécupérables. Les PDF importés ne sont pas
+chiffrés.
 
 - **Exportez régulièrement** via `Fichier → Exporter une sauvegarde…` (ou `Ctrl+S`, `⌘S` sur macOS).
 - Si vous exportez vers `Documents`, `Bureau` ou `Téléchargements`, sachez que ces dossiers
@@ -154,7 +158,7 @@ npm run tauri build    # application de bureau pour le système courant
 
 ## État et feuille de route
 
-**v1.1.0 — Linux et macOS.** L'application est complète et utilisée au quotidien, mais elle
+**v1.2.0 — Dossier des données au choix.** L'application est complète et utilisée au quotidien, mais elle
 n'a tourné que sur quelques machines. Windows et Linux sont pris en charge ; la version macOS
 reste expérimentale tant que des utilisateurs Mac ne l'ont pas essayée. Attendez-vous à des
 aspérités, et signalez-les.

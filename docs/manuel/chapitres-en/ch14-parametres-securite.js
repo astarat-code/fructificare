@@ -48,8 +48,8 @@ children.push(bullet([b('Envelope colors'), t(" — switches between the "), i('
 children.push(h2('14.3  Where your data lives'));
 
 children.push(p([
-  t("Everything lives in the application folder: automatic backups in its "),
-  code('save'), t(" subfolder, imported PDF documents in "), code('documents imp'), t('.'),
+  t("Everything lives in your "), b('data folder'), t(": automatic backups in its "),
+  code('save'), t(" subfolder, imported PDF documents in "), code('documents imp'), t(". By default, it is the application folder:"),
 ]));
 
 children.push(tableau(
@@ -61,6 +61,21 @@ children.push(tableau(
   ],
   [2000, 7026],
 ));
+
+children.push(h3('Choosing another folder'));
+children.push(p([
+  t("You choose it on first launch (§ 1.5), then at any time from "),
+  ui('File > Data folder & encryption…'), t(": a “Fructificare” subfolder is created at the location you pick."),
+]));
+children.push(bullet([b('Change folder…'), t(": your backups and imported documents are moved there. Everything is copied before the old folder is emptied.")]));
+children.push(bullet([b('Taking over an existing folder'), t(": if the folder you pick already holds Fructificare backups (USB stick, another computer), the application restarts on that data. What you had on screen stays in the old folder.")]));
+children.push(bullet([b('Back to the application folder'), t(": the way back, with the same rules.")]));
+children.push(gap(100));
+children.push(bonASavoir([
+  new TextRun({ text: "Drive unplugged? ", bold: true, size: 21 }),
+  new TextRun({ text: "If the chosen folder cannot be found at startup, Fructificare says so and writes nothing: plug the drive back in and click “Try again”, or pick another folder.", size: 21 }),
+]));
+children.push(gap(120));
 
 children.push(p([
   t("Fructificare saves on its own, a few seconds after each change, and keeps the "),
@@ -92,7 +107,7 @@ children.push(p([
 ]));
 
 children.push(h3('Turning it on'));
-children.push(step([t("Settings → "), ui('Security'), t(" → "), ui('Encrypt my backups'), t('.')], 3));
+children.push(step([t("Settings → "), ui('Security'), t(" → "), ui('Encrypt my backups'), t(", or "), ui('File > Data folder & encryption…')], 3));
 children.push(step("Choose a passphrase of at least 12 characters, then confirm.", 3));
 children.push(step("The current backup is rewritten encrypted, and the backups still in plain text are deleted.", 3));
 
@@ -110,7 +125,7 @@ children.push(p([
   t("and it is "), b('automatically saved again, encrypted'), t(". The conversion therefore happens by itself, through a simple import."),
 ]));
 children.push(p([
-  t("Only the automatic backups in the application folder are erased when encryption is turned on. "),
+  t("Only the automatic backups in your data folder are erased when encryption is turned on. "),
   t("Your exports stored elsewhere — Desktop, USB stick, external drive — are not touched, and stay in plain text until you import them again."),
 ]));
 

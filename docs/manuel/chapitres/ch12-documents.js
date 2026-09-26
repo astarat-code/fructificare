@@ -28,10 +28,10 @@ children.push(h2('12.1  Où se placent vos documents importés'));
 
 children.push(p([
   t("Comme le reste de Fructificare, ces fichiers restent stockés en local. À l'import, le PDF est "),
-  b('copié'), t(" dans un dossier de l'application : "),
+  b('copié'), t(" dans le sous-dossier "), code('documents imp'), t(" de votre dossier des données, choisi au premier lancement. Par défaut : "),
 ]));
 children.push(p([code('%APPDATA%\\app.fructificare.desktop\\documents imp\\')], { spacing: { after: 60 } }));
-children.push(p([t("Sous Linux et macOS, le dossier de l'application est ailleurs : voir le § 14.3.")], { spacing: { after: 160 } }));
+children.push(p([t("Sous Linux et macOS, ou si vous avez choisi un autre dossier, voir le § 14.3.")], { spacing: { after: 160 } }));
 
 children.push(p([
   t("Chaque enveloppe y reçoit son propre sous-dossier ; les documents non rattachés à une enveloppe vont dans un sous-dossier « global »."),
@@ -42,7 +42,7 @@ children.push(bonASavoir("C'est une copie qui va dans le dossier de l'applicatio
 children.push(gap(100));
 children.push(attention([
   new TextRun({ text: "Le fichier de sauvegarde JSON ne contient que les métadonnées (nom, date, type, chemin), jamais le PDF lui-même. ", size: 21 }),
-  new TextRun({ text: "Si vous changez d'ordinateur, copiez aussi le dossier « documents imp » : sinon vos fichiers ne suivront pas et le programme affichera « Fichier introuvable ».", size: 21, bold: true }),
+  new TextRun({ text: "Si vous changez d'ordinateur, copiez tout votre dossier des données, « documents imp » compris : sinon vos fichiers ne suivront pas et le programme affichera « Fichier introuvable ».", size: 21, bold: true }),
 ]));
 
 // ── 12.2 ───────────────────────────────────────────────────────────────────

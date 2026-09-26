@@ -90,10 +90,13 @@ the 82-page user manual, opened from `Help → User manual`.
 
 ## Where your data lives
 
-Everything lives in one application folder, with two subfolders: `save` (automatic
-backups, the last 10) and `documents imp` (imported PDF documents).
+Everything lives in one data folder, with two subfolders: `save` (automatic backups, the
+last 10) and `documents imp` (imported PDF documents). On first launch, a wizard lets you
+keep the default application folder or pick your own (a `Fructificare` subfolder is created
+there), and choose whether to encrypt. Both can be changed later from
+`File → Data folder & encryption…`; the data is moved along.
 
-| System | Application folder |
+| System | Default folder |
 |---|---|
 | Windows | `%APPDATA%\app.fructificare.desktop\` |
 | Linux | `~/.local/share/app.fructificare.desktop/` |
@@ -102,7 +105,8 @@ backups, the last 10) and `documents imp` (imported PDF documents).
 Backups are JSON files, **in plain text by default**, so any program running under your
 user account can read them. You can encrypt them with a passphrase:
 `Settings → Security → Encrypt my backups`. It will then be asked every time Fructificare
-opens — and **it cannot be reset**: if you forget it, the data is unrecoverable.
+opens — and **it cannot be reset**: if you forget it, the data is unrecoverable. Imported
+PDFs are not encrypted.
 
 - **Export regularly** with `File → Export a backup…` (or `Ctrl+S`, `⌘S` on macOS).
 - On Windows 11, `Documents`, `Desktop` and `Downloads` are often synchronized to OneDrive.
@@ -145,7 +149,7 @@ npm run tauri build    # desktop application for the current system
 
 ## Status and roadmap
 
-**v1.1.0 — Linux and macOS.** The application is feature-complete and used daily, but it
+**v1.2.0 — Data folder of your choice.** The application is feature-complete and used daily, but it
 has only run on a handful of machines. Windows and Linux are supported; the macOS version is
 experimental until Mac users have tried it. Expect rough edges, and please report them.
 
