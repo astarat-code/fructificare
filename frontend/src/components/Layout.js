@@ -15,6 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { getRecentFiles, addRecentFile, removeRecentFile, clearRecentFiles } from "../lib/recentFiles";
 import { openManual } from "../lib/openManual";
 import ConfirmDialog from "./ConfirmDialog";
+import DataFolderDialog from "./DataFolderDialog";
+import { getDataFolderInfo } from "../lib/dataFolder";
 import { toast } from "sonner";
 import gamificationService from "../services/gamificationService";
 import AvatarIcon from "./gamification/AvatarIcon";
@@ -47,6 +49,8 @@ export default function Layout({ children }) {
   const [viderConfirm, setViderConfirm] = useState({ open: false, resolve: null });
   const [recentOpen, setRecentOpen] = useState(false);
   const [recentList, setRecentList] = useState([]);
+  // Dossier des données : assistant de bienvenue, réglage (menu Fichier), dossier introuvable.
+  const [dataFolder, setDataFolder] = useState({ open: false, mode: "manage" });
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -207,6 +211,22 @@ export default function Layout({ children }) {
     }
   }, [lang, loadFileFromPath]);
 
+  // Premier lancement : proposer le dossier des données et le chiffrement. Un dossier
+  // choisi mais introuvable (disque débranché) bloque l'accès aux données jusqu'à ce que
+  // l'utilisateur le retrouve ou en désigne un autre.
+  useEffect(() => {
+    if (!isTauri) return;
+    getDataFolderInfo()
+      .then((info) => {
+        if (!info.available) setDataFolder({ open: true, mode: "unavailable" });
+        else if (info.firstRun) setDataFolder({ open: true, mode: "first-run" });
+      })
+      .catch(() => { /* commande indisponible : dossier de l'application */ });
+    const ouvrir = () => setDataFolder({ open: true, mode: "manage" });
+    window.addEventListener("fructificare-open-data-folder", ouvrir);
+    return () => window.removeEventListener("fructificare-open-data-folder", ouvrir);
+  }, [isTauri]);
+
   // Le menu natif suit la langue d'affichage (il est construit en français au démarrage).
   useEffect(() => {
     if (typeof window === "undefined" || !window.__TAURI_INTERNALS__) return;
@@ -271,6 +291,7 @@ export default function Layout({ children }) {
               setRecentList(getRecentFiles());
               setRecentOpen(true);
               break;
+            case "data-folder": setDataFolder({ open: true, mode: "manage" }); break;
             case "settings": navigate("/settings"); break;
             case "glossary": navigate("/glossaire"); break;
             case "theme-dark":
@@ -633,6 +654,11 @@ export default function Layout({ children }) {
       />
 
       {/* « Nouveau » (menu natif) : vider l'espace de travail — voir le gestionnaire menu-action. */}
+      <DataFolderDialog
+        open={dataFolder.open}
+        mode={dataFolder.mode}
+        onClose={() => setDataFolder((d) => ({ ...d, open: false }))}
+      />
       <ConfirmDialog
         open={viderConfirm.open}
         danger

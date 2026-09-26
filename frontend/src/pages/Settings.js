@@ -18,7 +18,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { saveFileWithDialog } from "../lib/saveFile";
 import { toast } from "sonner";
 import { Download, Upload, FileDown, AlertTriangle, CheckCircle2, RotateCcw, HardDrive, FolderOpen, User, Settings2, Save, Lock } from "lucide-react";
-import PassphraseDialog from "../components/PassphraseDialog";
+import EncryptionControls from "../components/EncryptionControls";
+import { getDataFolderInfo } from "../lib/dataFolder";
 import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function Settings({ onDataChange }) {
@@ -31,81 +32,11 @@ export default function Settings({ onDataChange }) {
   // Confirmation avant qu'un import n'ecrase les donnees en cours (carte navigateur).
   const [ecrasement, setEcrasement] = useState({ open: false, resolve: null });
 
-  // ── Chiffrement des sauvegardes (voir cryptoService.js) ──────────────────
-  const [encryptionOn, setEncryptionOn] = useState(() => storageService.isEncryptionEnabled());
-  const [encryptionBusy, setEncryptionBusy] = useState(false);
-  const [passphraseOpen, setPassphraseOpen] = useState(false);
-  const [passphraseError, setPassphraseError] = useState(null);
-  const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
-  // B-07 : la désactivation exige la phrase actuelle (elle déverse tout en clair).
-  const [disablePassphrase, setDisablePassphrase] = useState('');
-  const [disableError, setDisableError] = useState(null);
-  const [changeOpen, setChangeOpen] = useState(false);
-  const [changeError, setChangeError] = useState(null);
-
-  const currentJson = useCallback(
-    () => JSON.stringify(dataService.buildExportPayload(), null, 2),
-    [],
-  );
-
-  const handleEnableEncryption = useCallback(async (phrase) => {
-    setEncryptionBusy(true);
-    setPassphraseError(null);
-    // La dérivation de clé prend ~0,5 s : on laisse le navigateur peindre l'état
-    // « occupé » avant de bloquer le fil principal.
-    await new Promise((r) => setTimeout(r, 0));
-    const res = await storageService.enableEncryption(phrase, currentJson);
-    setEncryptionBusy(false);
-    if (!res.ok) {
-      setPassphraseError(res.error || (lang === 'fr' ? 'Échec du chiffrement.' : 'Encryption failed.'));
-      return;
-    }
-    setPassphraseOpen(false);
-    setEncryptionOn(true);
-    toast.success(lang === 'fr'
-      ? `Sauvegardes chiffrées.${res.purged ? ` ${res.purged} sauvegarde(s) en clair supprimée(s).` : ''}`
-      : `Backups encrypted.${res.purged ? ` ${res.purged} plain-text backup(s) deleted.` : ''}`);
-  }, [currentJson, lang]);
-
-  const handleChangePassphrase = useCallback(async ({ courante, nouvelle }) => {
-    setEncryptionBusy(true);
-    setChangeError(null);
-    // La dérivation de clé prend ~0,5 s : on laisse le navigateur peindre l'état
-    // « occupé » avant de bloquer le fil principal.
-    await new Promise((r) => setTimeout(r, 0));
-    const res = await storageService.changePassphrase(courante, nouvelle, currentJson);
-    setEncryptionBusy(false);
-    if (!res.ok) {
-      setChangeError(res.error || (lang === 'fr' ? 'Échec du changement.' : 'Change failed.'));
-      return;
-    }
-    setChangeOpen(false);
-    toast.success(lang === 'fr'
-      ? `Phrase secrète changée.${res.purged ? ` ${res.purged} ancienne(s) sauvegarde(s) supprimée(s).` : ''}`
-      : `Passphrase changed.${res.purged ? ` ${res.purged} old backup(s) deleted.` : ''}`);
-  }, [currentJson, lang]);
-
-  const handleDisableEncryption = useCallback(async () => {
-    setEncryptionBusy(true);
-    setDisableError(null);
-    await new Promise((r) => setTimeout(r, 0)); // laisse peindre l'état occupé
-    const res = await storageService.disableEncryption(disablePassphrase, currentJson);
-    setEncryptionBusy(false);
-    if (!res.ok) {
-      setDisableError(res.error || (lang === 'fr' ? 'Échec de la désactivation.' : 'Could not disable encryption.'));
-      return;
-    }
-    setDisablePassphrase('');
-    setDisableConfirmOpen(false);
-    setEncryptionOn(false);
-    toast.success(lang === 'fr'
-      ? 'Chiffrement désactivé — les prochaines sauvegardes seront en clair.'
-      : 'Encryption disabled — future backups will be in plain text.');
-  }, [disablePassphrase, currentJson, lang]);
   const [importedCount, setImportedCount] = useState(0);
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
   const [saveStatus, setSaveStatus] = useState(storageService.getStatus());
   const [backups, setBackups] = useState([]);
+  const [dataRoot, setDataRoot] = useState(null);
 
   // ── Données utilisateur ───────────────────────────────────────────────────
   const [userUsername,   setUserUsername]   = useState('');
@@ -208,9 +139,15 @@ export default function Settings({ onDataChange }) {
   useEffect(() => {
     storageService.init();
     const unsub = storageService.subscribe(s => setSaveStatus({ ...s }));
-    // Charger la liste des sauvegardes (Tauri seulement)
-    storageService.listBackups().then(setBackups);
-    return unsub;
+    // Dossier des données et liste des sauvegardes (Tauri seulement), relus après un
+    // changement de dossier.
+    const lireDossier = () => {
+      getDataFolderInfo().then((info) => setDataRoot(info?.root || null)).catch(() => {});
+      storageService.listBackups().then(setBackups);
+    };
+    lireDossier();
+    window.addEventListener('fructificare-data-folder-changed', lireDossier);
+    return () => { unsub(); window.removeEventListener('fructificare-data-folder-changed', lireDossier); };
   }, []);
 
   const checkData = useCallback(() => {
@@ -493,52 +430,7 @@ export default function Settings({ onDataChange }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="encryption-switch" className="text-sm font-medium">
-                {lang === 'fr' ? 'Chiffrer mes sauvegardes' : 'Encrypt my backups'}
-              </Label>
-              <p className="text-xs text-muted-foreground max-w-prose">
-                {encryptionOn
-                  ? (lang === 'fr'
-                    ? 'Chiffrement actif (AES-256-GCM). Votre phrase secrète est demandée à chaque ouverture de Fructificare.'
-                    : 'Encryption is on (AES-256-GCM). Your passphrase is requested every time you open Fructificare.')
-                  : (lang === 'fr'
-                    ? "Protège vos sauvegardes par une phrase secrète. Si vous l'oubliez, vos données sont définitivement irrécupérables."
-                    : 'Protects your backups with a passphrase. If you forget it, your data is permanently unrecoverable.')}
-              </p>
-            </div>
-            <Switch
-              id="encryption-switch"
-              checked={encryptionOn}
-              disabled={encryptionBusy}
-              onCheckedChange={(next) => {
-                if (next) setPassphraseOpen(true);
-                else setDisableConfirmOpen(true);
-              }}
-              data-testid="encryption-switch"
-            />
-          </div>
-
-          {encryptionOn && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => { setChangeError(null); setChangeOpen(true); }}
-                disabled={encryptionBusy}
-                data-testid="change-passphrase-btn"
-              >
-                <Lock className="w-4 h-4 mr-2" />
-                {lang === 'fr' ? 'Changer la phrase secrète' : 'Change passphrase'}
-              </Button>
-              <p className="text-xs text-muted-foreground mt-2 max-w-prose">
-                {lang === 'fr'
-                  ? "Vos sauvegardes sont réécrites avec la nouvelle phrase sans jamais repasser en clair sur le disque, et celles que l'ancienne phrase ouvrait encore sont supprimées."
-                  : 'Your backups are rewritten with the new passphrase without ever touching the disk in plain text, and those still readable with the old one are deleted.'}
-              </p>
-            </div>
-          )}
+          <EncryptionControls />
         </CardContent>
       </Card>
 
@@ -646,7 +538,7 @@ export default function Settings({ onDataChange }) {
               {lang === 'fr' ? 'Sauvegarde automatique' : 'Auto-save'}
             </CardTitle>
             <CardDescription>
-              {saveStatus.mode === 'tauri' && (lang === 'fr' ? 'Tauri — 10 fichiers conservés dans le dossier app.' : 'Tauri — 10 files kept in the app folder.')}
+              {saveStatus.mode === 'tauri' && (lang === 'fr' ? 'Les 10 plus récentes sont conservées dans votre dossier des données.' : 'The 10 most recent are kept in your data folder.')}
               {saveStatus.mode === 'fsa'   && (lang === 'fr' ? 'Chrome/Edge — écrit dans le fichier choisi.' : 'Chrome/Edge — writes to the selected file.')}
               {saveStatus.mode === 'fallback' && (lang === 'fr' ? 'Firefox — utiliser le bouton de téléchargement.' : 'Firefox — use the download button.')}
             </CardDescription>
@@ -691,6 +583,23 @@ export default function Settings({ onDataChange }) {
                 <FolderOpen className="w-3.5 h-3.5" />
                 {lang === 'fr' ? 'Changer le fichier de sauvegarde' : 'Change save file'}
               </Button>
+            )}
+
+            {/* Tauri : dossier des données, modifiable depuis Fichier › Dossier des données… */}
+            {saveStatus.mode === 'tauri' && dataRoot && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-mono text-muted-foreground break-all" data-testid="data-folder-path">{dataRoot}</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full gap-1.5 text-xs"
+                  onClick={() => window.dispatchEvent(new Event('fructificare-open-data-folder'))}
+                  data-testid="open-data-folder-settings"
+                >
+                  <FolderOpen className="w-3.5 h-3.5" />
+                  {lang === 'fr' ? 'Dossier des données et chiffrement…' : 'Data folder & encryption…'}
+                </Button>
+              </div>
             )}
 
             {/* Tauri : liste des 5 dernières sauvegardes */}
@@ -842,83 +751,6 @@ export default function Settings({ onDataChange }) {
         onConfirm={() => { ecrasement.resolve?.(true); setEcrasement({ open: false, resolve: null }); }}
         onCancel={() => { ecrasement.resolve?.(false); setEcrasement({ open: false, resolve: null }); }}
       />
-      {/* Choix de la phrase secrète lors de l'activation du chiffrement */}
-      <PassphraseDialog
-        open={passphraseOpen}
-        mode="create"
-        error={passphraseError}
-        busy={encryptionBusy}
-        onSubmit={handleEnableEncryption}
-        onCancel={() => { setPassphraseOpen(false); setPassphraseError(null); }}
-      />
-
-      {/* Changement de phrase secrète */}
-      <PassphraseDialog
-        open={changeOpen}
-        mode="change"
-        error={changeError}
-        busy={encryptionBusy}
-        onSubmit={handleChangePassphrase}
-        onCancel={() => { setChangeOpen(false); setChangeError(null); }}
-      />
-
-      {/* Confirmation avant de repasser en clair — la phrase actuelle est exigée (B-07) */}
-      <Dialog
-        open={disableConfirmOpen}
-        onOpenChange={(o) => {
-          setDisableConfirmOpen(o);
-          if (!o) { setDisablePassphrase(''); setDisableError(null); }
-        }}
-      >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-destructive" />
-              {lang === 'fr' ? 'Désactiver le chiffrement ?' : 'Disable encryption?'}
-            </DialogTitle>
-            <DialogDescription>
-              {lang === 'fr'
-                ? "Vos prochaines sauvegardes seront écrites en clair dans le dossier de l'application, lisibles par tout programme lancé sous votre session utilisateur. Saisissez votre phrase secrète pour confirmer."
-                : 'Future backups will be written in plain text in the application folder, readable by any program running under your user account. Enter your passphrase to confirm.'}
-            </DialogDescription>
-          </DialogHeader>
-          <form
-            onSubmit={(e) => { e.preventDefault(); if (!encryptionBusy && disablePassphrase) handleDisableEncryption(); }}
-            className="space-y-3"
-          >
-            <div className="space-y-1.5">
-              <Label htmlFor="disable-passphrase">{lang === 'fr' ? 'Phrase secrète actuelle' : 'Current passphrase'}</Label>
-              <Input
-                id="disable-passphrase"
-                type="password"
-                autoComplete="current-password"
-                value={disablePassphrase}
-                onChange={(e) => { setDisablePassphrase(e.target.value); setDisableError(null); }}
-                disabled={encryptionBusy}
-                data-testid="disable-passphrase-input"
-              />
-            </div>
-            {disableError && (
-              <p className="text-sm text-destructive" role="alert" data-testid="disable-error">{disableError}</p>
-            )}
-            <DialogFooter className="gap-2 sm:gap-0">
-              <Button
-                type="button"
-                variant="outline"
-                // Fermer par programme ne passe pas par onOpenChange : on vide ici aussi,
-                // pour ne pas laisser la phrase dans l'état du composant.
-                onClick={() => { setDisableConfirmOpen(false); setDisablePassphrase(''); setDisableError(null); }}
-                disabled={encryptionBusy}
-              >
-                {lang === 'fr' ? 'Annuler' : 'Cancel'}
-              </Button>
-              <Button type="submit" variant="destructive" disabled={encryptionBusy || !disablePassphrase}>
-                {lang === 'fr' ? 'Désactiver' : 'Disable'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

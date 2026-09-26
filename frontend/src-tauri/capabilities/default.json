@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Fructificare — accès disque limité aux dossiers de l'application, dialogues de fichiers, ouverture de documents, menu natif. N'AJOUTEZ JAMAIS « opener:default » : ce jeu contient allow-open-url + allow-default-urls (portée http://* et https://*), soit un canal d'exfiltration que la CSP ne peut pas fermer, puisqu'ouvrir le navigateur système ne passe pas par la webview. L'application n'ouvre que des chemins locaux. Contrôlé par scripts/check-capabilities.js.",
+  "description": "Fructificare — accès disque limité aux dossiers de l'application, dialogues de fichiers, ouverture de documents, menu natif. N'AJOUTEZ JAMAIS « opener:default » : ce jeu contient allow-open-url + allow-default-urls (portée http://* et https://*), soit un canal d'exfiltration que la CSP ne peut pas fermer, puisqu'ouvrir le navigateur système ne passe pas par la webview. L'application n'ouvre que des chemins locaux ; les documents importés et le dossier des données sont ouverts par des commandes natives qui revalident le chemin (src/dossier_donnees.rs), et un dossier des données choisi par l'utilisateur est ajouté à la portée fs au démarrage par ce même module. Contrôlé par scripts/check-capabilities.js.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -15,9 +15,6 @@
     {
       "identifier": "opener:allow-open-path",
       "allow": [
-        { "path": "$APPDATA/documents imp" },
-        { "path": "$APPDATA/documents imp/*/*.pdf" },
-        { "path": "$APPDATA/documents importés/*/*.pdf" },
         { "path": "$APPDATA/manuel/*.pdf" },
         { "path": "$DESKTOP/*.pdf" },
         { "path": "$DOCUMENT/*.pdf" },

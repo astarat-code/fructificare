@@ -4,8 +4,9 @@
  * storageService.js — Persistence abstraction layer for Fructificare
  *
  * MODES:
- *   'tauri'    → Tauri webview detected     : writes into [appDataDir]/save/
- *                Automatic rotation — keeps the 10 most recent files.
+ *   'tauri'    → Tauri webview detected     : writes into [data folder]/save/, the data
+ *                folder being the application folder or the one the user chose (see
+ *                lib/dataFolder.js). Automatic rotation — keeps the 10 most recent files.
  *   'fsa'      → Chrome/Edge (File System Access API): writes into a file chosen by the
  *                user, the handle being stored in IndexedDB.
  *   'fallback' → Firefox / no FSA: auto-save impossible, manual download only (through
@@ -14,6 +15,7 @@
  * PUBLIC API:
  *   storageService.save(jsonString)         → Promise<{ok, error, path}>
  *   storageService.scheduleSave(getDataFn)  → void  (2 s debounce)
+ *   storageService.flush()                  → Promise<void>  (writes the pending save now)
  *   storageService.load()                   → Promise<Object|null>
  *   storageService.listBackups()            → Promise<Array<{name,path,label}>>
  *   storageService.restoreBackup(path)      → Promise<Object>
@@ -33,9 +35,11 @@
  *   storageService.disableEncryption(p, fn) → Promise<{ok}>  (requires the current passphrase)
  *   storageService.isEncryptionEnabled()    → boolean
  *   storageService.isUnlocked()             → boolean
+ *   storageService.syncEncryptionFlag()     → Promise<void>  (after a data folder change)
  */
 
 import cryptoService from './cryptoService';
+import { getDataRoot } from '../lib/dataFolder';
 
 // ── Constantes ─────────────────────────────────────────────────────────────────
 
@@ -71,6 +75,7 @@ const _state = {
   lastSaved:    null,   // ISO string
   error:        null,   // string | null
   pendingTimer: null,
+  pendingData:  null,   // ce que l'enregistrement différé écrira (voir flush)
   listeners:    [],
 };
 
@@ -222,7 +227,7 @@ async function _fsaLoad() {
 /** Résout les APIs Tauri utilisées pour la persistance. */
 async function _getTauriApis() {
   try {
-    const [fs, { appDataDir, join }] = await Promise.all([
+    const [fs, { join }] = await Promise.all([
       import('@tauri-apps/plugin-fs'),
       import('@tauri-apps/api/path'),
     ]);
@@ -232,7 +237,7 @@ async function _getTauriApis() {
       writeText:  (p, c)  => fs.writeTextFile(p, c),
       createDir:  (p)     => fs.mkdir(p, { recursive: true }),
       removeFile: (p)     => fs.remove(p),
-      appDataDir,
+      dataDir:    getDataRoot,
       join,
     };
   } catch {
@@ -277,7 +282,7 @@ let _migrationDossier = null;
 
 /** Chemin du dossier des sauvegardes automatiques, après migration de l'ancien dossier. */
 async function _saveDir(api) {
-  const dataDir = await api.appDataDir();
+  const dataDir = await api.dataDir();
   const saveDir = await api.join(dataDir, SAVE_FOLDER);
   if (!_migrationDossier) _migrationDossier = _migrerAncienDossier(api, dataDir, saveDir);
   await _migrationDossier;
@@ -557,13 +562,27 @@ function scheduleSave(dataOrFn) {
     clearTimeout(_state.pendingTimer);
     _state.pendingTimer = null;
   }
-  _state.pendingTimer = setTimeout(async () => {
-    _state.pendingTimer = null;
-    try {
-      const jsonString = typeof dataOrFn === 'function' ? dataOrFn() : dataOrFn;
-      await save(jsonString);
-    } catch {}
-  }, DEBOUNCE_MS);
+  _state.pendingData = dataOrFn;
+  _state.pendingTimer = setTimeout(flush, DEBOUNCE_MS);
+}
+
+/**
+ * Écrit sans attendre l'enregistrement différé en attente, s'il y en a un.
+ *
+ * Appelée avant un changement de dossier des données : sinon l'enregistrement partirait
+ * APRÈS le changement, et déposerait l'état courant dans le nouveau dossier — où il
+ * passerait pour la sauvegarde la plus récente des données qu'on vient d'y reprendre.
+ */
+async function flush() {
+  if (_state.pendingTimer) clearTimeout(_state.pendingTimer);
+  _state.pendingTimer = null;
+  const dataOrFn = _state.pendingData;
+  _state.pendingData = null;
+  if (dataOrFn == null) return;
+  try {
+    const jsonString = typeof dataOrFn === 'function' ? dataOrFn() : dataOrFn;
+    await save(jsonString);
+  } catch {}
 }
 
 /**
@@ -649,6 +668,22 @@ function setKeyAdoptionConfirm(confirm) {
 
 function isEncryptionEnabled() {
   return _crypto.enabled;
+}
+
+/**
+ * Aligne l'indicateur de chiffrement sur la sauvegarde la plus récente du dossier des
+ * données, après un changement de dossier suivi d'un rechargement.
+ *
+ * Une sauvegarde chiffrée rétablit déjà l'indicateur à sa lecture (voir _deserialize).
+ * L'inverse n'existe pas : reprendre un dossier en clair avec l'indicateur levé laisserait
+ * l'application verrouillée, sans clé, incapable d'enregistrer. Dossier vide : on repart
+ * de zéro, sans chiffrement — l'utilisateur pourra l'activer pour ce nouveau dossier.
+ */
+async function syncEncryptionFlag() {
+  if (_state.mode !== 'tauri') return;
+  const text = await _tauriLoad();
+  if (text == null) { _setFlag(false); return; }
+  try { _setFlag(cryptoService.isEncryptedEnvelope(JSON.parse(text))); } catch { /* illisible : inchangé */ }
 }
 
 /** Faux tant que la phrase secrète n'a pas été fournie pour une session chiffrée. */
@@ -890,6 +925,7 @@ const storageService = {
   init,
   save,
   scheduleSave,
+  flush,
   load,
   listBackups,
   restoreBackup,
@@ -901,6 +937,7 @@ const storageService = {
   setKeyAdoptionConfirm,
   isEncryptionEnabled,
   isUnlocked,
+  syncEncryptionFlag,
   enableEncryption,
   disableEncryption,
   changePassphrase,

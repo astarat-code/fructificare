@@ -83,7 +83,7 @@ async function scenarioMigration() {
     const disque = new Map();
     const dossiers = new Set();
     const api = {
-      appDataDir: async () => RACINE,
+      dataDir: async () => RACINE,
       join: async (...p) => p.join('/'),
       mkdir: async (d) => { dossiers.add(d); },
       copyFile: async (s, d) => { disque.set(d, disque.get(s)); },

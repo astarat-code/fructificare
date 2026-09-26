@@ -4,14 +4,15 @@
  * documentService.js — Handling of financial documents (PDF) on disk.
  *
  * PHILOSOPHY: local-only, like the rest of Fructificare.
- *   • Tauri (desktop): PDFs are copied into [appDataDir]/documents imp/… and opened with
- *     the system PDF reader. This is the fully functional mode.
+ *   • Tauri (desktop): PDFs are copied into [data folder]/documents imp/… and opened with
+ *     the system PDF reader. This is the fully functional mode. The data folder is the
+ *     application folder or the one the user chose (see lib/dataFolder.js).
  *   • Browser (dev): no arbitrary disk access → the chosen file is kept in memory for the
  *     session; "Open" triggers a download. The UI shows a "native opening available in the
  *     desktop version" notice.
  *
  * On-disk layout (Tauri):
- *   [appDataDir]/
+ *   [data folder]/
  *     save/                  ← managed by storageService
  *     documents imp/         ← a neutral name, identical in French and English
  *       global/              ← documents not tied to an envelope
@@ -20,6 +21,8 @@
  *
  * Only the metadata + the relative path are persisted in the JSON (never the PDF).
  */
+
+import { getDataRoot, openDataFolder, openDocumentFile } from '../lib/dataFolder';
 
 // « imp » = importés / imported : le nom du dossier ne dépend pas de la langue d'affichage.
 const ROOT_FOLDER = 'documents imp';
@@ -52,7 +55,7 @@ async function _getTauri() {
       import('@tauri-apps/plugin-dialog'),
     ]);
     return {
-      appDataDir: pathApi.appDataDir,
+      dataDir:    getDataRoot,
       join:       pathApi.join,
       mkdir:      (p) => fs.mkdir(p, { recursive: true }),
       copyFile:   (s, d) => fs.copyFile(s, d),
@@ -147,7 +150,7 @@ async function saveDocument({ id, slug, filename, source }) {
     return { relPath, persisted: false };
   }
   const api = await _getTauri();
-  const dataDir = await api.appDataDir();
+  const dataDir = await api.dataDir();
   const dir = await api.join(dataDir, ROOT_FOLDER, slug);
   try { await api.mkdir(dir); } catch (_) { /* déjà présent */ }
   const dest = await api.join(dir, filename);
@@ -160,7 +163,7 @@ async function getExpectedPath(doc) {
   if (!isTauri()) return doc.rel_path;
   try {
     const api = await _getTauri();
-    const dataDir = await api.appDataDir();
+    const dataDir = await api.dataDir();
     return _absPath(api, dataDir, doc.rel_path);
   } catch {
     return doc.rel_path;
@@ -172,7 +175,7 @@ async function documentExists(doc) {
   if (!isTauri()) return _browserBlobs.has(doc.id);
   try {
     const api = await _getTauri();
-    const dataDir = await api.appDataDir();
+    const dataDir = await api.dataDir();
     const abs = await _absPath(api, dataDir, doc.rel_path);
     return await api.exists(abs);
   } catch {
@@ -187,7 +190,7 @@ async function documentExists(doc) {
 async function openDocument(doc) {
   if (isTauri()) {
     const api = await _getTauri();
-    const dataDir = await api.appDataDir();
+    const dataDir = await api.dataDir();
     let abs;
     try {
       abs = await _absPath(api, dataDir, doc.rel_path);
@@ -196,11 +199,11 @@ async function openDocument(doc) {
     }
     const exists = await api.exists(abs).catch(() => false);
     if (!exists) return { ok: false, reason: 'not_found', path: abs };
-    // Ouverture avec l'application PDF système via le plugin `opener` (shell.open ne
-    // valide que les URL http/mailto/tel en v2, pas les chemins de fichiers locaux).
+    // Ouverture par le côté natif, qui revalide le chemin : la liste blanche de
+    // « opener:allow-open-path » est figée et ne couvre pas un dossier choisi par
+    // l'utilisateur (voir dossier_donnees.rs).
     try {
-      const { openPath } = await import('@tauri-apps/plugin-opener');
-      await openPath(abs);
+      await openDocumentFile(doc.rel_path);
       return { ok: true, path: abs };
     } catch (e) {
       return { ok: false, reason: 'open_error', path: abs, error: String(e && e.message ? e.message : e) };
@@ -231,7 +234,7 @@ async function moveDocument({ relPath, newSlug, newFilename }) {
   if (newRel === relPath) return { relPath, moved: false };
   if (!isTauri()) return { relPath: newRel, moved: false }; // navigateur : métadonnées seules
   const api = await _getTauri();
-  const dataDir = await api.appDataDir();
+  const dataDir = await api.dataDir();
   // Un ancien chemin refusé (sauvegarde altérée) ne doit pas empêcher la mise à jour des
   // métadonnées : on renonce simplement à déplacer le fichier sur le disque.
   let oldAbs = null;
@@ -250,13 +253,8 @@ async function moveDocument({ relPath, newSlug, newFilename }) {
 async function openDocumentsFolder() {
   if (!isTauri()) return { ok: false, reason: 'browser' };
   try {
-    const api = await _getTauri();
-    const dataDir = await api.appDataDir();
-    const folder = await api.join(dataDir, ROOT_FOLDER);
-    try { await api.mkdir(folder); } catch (_) { /* déjà présent */ }
-    const { openPath } = await import('@tauri-apps/plugin-opener');
-    await openPath(folder);
-    return { ok: true, path: folder };
+    await openDataFolder(true);
+    return { ok: true };
   } catch (e) {
     return { ok: false, reason: 'open_error', error: String(e && e.message ? e.message : e) };
   }
@@ -287,7 +285,7 @@ async function migrateDocumentFolders(documents, slugAttendu) {
   let dataDir;
   try {
     api = await _getTauri();
-    dataDir = await api.appDataDir();
+    dataDir = await api.dataDir();
   } catch {
     return vide;
   }
@@ -354,7 +352,7 @@ async function deleteDocumentFile(doc) {
   if (!isTauri()) { _browserBlobs.delete(doc.id); return; }
   try {
     const api = await _getTauri();
-    const dataDir = await api.appDataDir();
+    const dataDir = await api.dataDir();
     const abs = await _absPath(api, dataDir, doc.rel_path);
     if (await api.exists(abs).catch(() => false)) await api.remove(abs);
   } catch (_) { /* fichier déjà absent : rien à faire */ }

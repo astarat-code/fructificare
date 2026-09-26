@@ -1,6 +1,6 @@
 {
   "name": "fructificare",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Offline portfolio tracker and simulator for French investors (PEA, brokerage, life insurance, PER).",
   "keywords": [
@@ -61,7 +61,7 @@
     "lint": "eslint src scripts",
     "license-check": "npx --yes license-checker --production --excludePrivatePackages --onlyAllow \"MIT;Apache-2.0;ISC;BSD-2-Clause;BSD-3-Clause;0BSD;LGPL-2.1;LGPL-3.0;GPL-3.0;MPL-2.0;CC0-1.0;Unlicense;CC-BY-4.0;Zlib;BlueOak-1.0.0;Python-2.0\"",
     "test:rules": "node scripts/test-taxable-withdrawal.js && node scripts/test-avatars.js && node scripts/test-plus-values.js && node scripts/test-calendar-grid.js && node scripts/test-system-language.js",
-    "test:security": "node scripts/test-documents-path.js && node scripts/test-import-validation.js && node scripts/test-crypto.js && node scripts/test-storage-encryption.js && node scripts/test-recent-files.js && node scripts/test-log-privacy.js && node scripts/test-document-folders.js && node scripts/test-passphrase-example.js && node scripts/test-gamification-privacy.js && node scripts/test-backup-rotation.js && node scripts/test-save-folder.js",
+    "test:security": "node scripts/test-documents-path.js && node scripts/test-import-validation.js && node scripts/test-crypto.js && node scripts/test-storage-encryption.js && node scripts/test-recent-files.js && node scripts/test-log-privacy.js && node scripts/test-document-folders.js && node scripts/test-passphrase-example.js && node scripts/test-gamification-privacy.js && node scripts/test-backup-rotation.js && node scripts/test-save-folder.js && node scripts/test-data-folder.js",
     "check:build": "node scripts/check-capabilities.js && node scripts/check-no-inline-script.js && node scripts/check-offline.js"
   },
   "browserslist": {
@@ -79,7 +79,7 @@
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
     "@craco/craco": "^7.1.0",
-    "@eslint/js": "9.23.0",
+    "@eslint/js": "9.39.5",
     "@tauri-apps/cli": "^2",
     "autoprefixer": "^10.6.1",
     "eslint": "9.23.0",
