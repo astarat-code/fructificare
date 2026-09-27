@@ -65,7 +65,11 @@ children.push(bonASavoir([
 ]));
 
 children.push(h3('macOS and Linux'));
-children.push(p("No packaged version is distributed for now. Since the code is open, these platforms can be built from source (see CONTRIBUTING.md in the repository)."));
+children.push(p([
+  t("On Linux, two formats are published: "), code('.deb'), t(" for Debian, Ubuntu and derivatives (recommended), and "),
+  code('.AppImage'), t(" for any distribution. On macOS, a universal "), code('.dmg'),
+  t(" is offered as experimental: it is not notarized by Apple, which asks for confirmation on first opening."),
+]));
 
 children.push(h2("1.3  Launching the application"));
 children.push(p([
@@ -85,14 +89,23 @@ children.push(p([
 children.push(gap(120));
 children.push(bonASavoir([
   new TextRun({ text: 'Get into the habit of exporting your file from time to time (', size: 21 }),
-  new TextRun({ text: 'Settings → Export Data', size: 21, bold: true, color: GREEN }),
+  new TextRun({ text: 'File → Export a backup…', size: 21, bold: true, color: GREEN }),
   new TextRun({ text: ') and of storing it somewhere other than your working disk: USB stick, external drive, personal storage space.', size: 21 }),
 ]));
 
 children.push(h2('1.5  The first launch'));
-children.push(p("On the very first start, Fructificare welcomes you and offers its built-in tutorial. Click “Continue”: the window will not appear again."));
+children.push(p("On the very first start, a wizard asks you two questions before anything else."));
+children.push(step([b('Where should your data go?'), t(" The application folder suits most cases. Choose "), ui('A folder of my choice…'), t(" instead to keep your backups within reach: a “Fructificare” subfolder is created there, which automatically receives your backups and the PDFs you import. If you pick an existing “Fructificare” folder — on a USB stick, after a reinstall —, its backups are taken over.")], 5));
+children.push(step([b('Encrypt your backups?'), t(" Yes, with a passphrase asked for every time you open the application; or not now (see § 14.4).")], 5));
+children.push(p([
+  t("Both settings can be changed at any time from "), ui('File > Data folder & encryption…'),
+  t(" (§ 14.3)."),
+]));
 children.push(gap(100));
-children.push(...figure('1.1', 'The welcome window',
+children.push(...figure('1.1', 'The first-launch wizard', "", ['The data folder', 'Encryption']));
+children.push(p("Fructificare then welcomes you and offers its built-in tutorial. Click “Continue”: the window will not appear again."));
+children.push(gap(100));
+children.push(...figure('1.2', 'The welcome window',
   "the welcome modal as it appears on first launch, over a dashboard that is still empty in the background (blurred or dimmed by the modal)."));
 
 children.push(h2('1.6  Fructificare vocabulary'));
@@ -126,7 +139,7 @@ children.push(p([
   ui('Trophies'), t(' page (chapter 13).'),
 ]));
 children.push(gap(100));
-children.push(...figure('1.2', 'The “Tutorial” banner on the dashboard',
+children.push(...figure('1.3', 'The “Tutorial” banner on the dashboard',
   "the banner expanded at the top of the dashboard, showing the current mission, its description and the “How to complete?” button."));
 
 children.push(p([b('The fourteen-mission path')]));

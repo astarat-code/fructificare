@@ -7,6 +7,29 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-26
+
+### Added
+
+- **First-launch wizard** — Fructificare now asks where to keep its data: the application
+  folder, or a folder of your choice where a `Fructificare` subfolder is created. Picking an
+  existing `Fructificare` folder (USB stick, another computer) takes over its backups. The
+  wizard then offers to encrypt the backups.
+- **File › Data folder & encryption…** — move the data to another folder (everything is
+  copied before the old folder is emptied), go back to the application folder, and turn
+  encryption on or off, from one window.
+- **Missing data folder** — when the chosen folder cannot be found at startup (drive
+  unplugged), the application says so and writes nothing until it is found again or
+  replaced, so an empty backup can never pass for the latest one.
+
+### Changed
+
+- Imported documents are opened by a native command that validates the path again; the
+  `opener` permission no longer lists the documents folder.
+- User manual: first launch (§ 1.5), documents (§ 12.1) and data folder (§ 14.3) rewritten;
+  the Linux and macOS packages are now mentioned in § 1.2.
+- `@eslint/js` 9.39.5.
+
 ## [1.1.0] — 2026-09-24
 
 ### Added
@@ -78,7 +101,8 @@ First public release.
 - **Public build chain** — CI-built Windows binaries with published SHA-256 fingerprints,
   actions pinned by commit hash, write token isolated in a job that compiles nothing.
 
-[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/astarat-code/fructificare/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/astarat-code/fructificare/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/astarat-code/fructificare/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/astarat-code/fructificare/releases/tag/v1.0.0

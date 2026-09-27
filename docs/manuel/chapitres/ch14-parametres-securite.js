@@ -48,8 +48,8 @@ children.push(bullet([b('Couleurs des enveloppes'), t(" — bascule entre la pal
 children.push(h2('14.3  Où sont vos données'));
 
 children.push(p([
-  t("Tout est rangé dans le dossier de l'application : les sauvegardes automatiques dans son sous-dossier "),
-  code('save'), t(", les documents PDF importés dans "), code('documents imp'), t('.'),
+  t("Tout est rangé dans votre "), b('dossier des données'), t(" : les sauvegardes automatiques dans son sous-dossier "),
+  code('save'), t(", les documents PDF importés dans "), code('documents imp'), t(". Par défaut, c'est le dossier de l'application :"),
 ]));
 
 children.push(tableau(
@@ -61,6 +61,21 @@ children.push(tableau(
   ],
   [2000, 7026],
 ));
+
+children.push(h3('Choisir un autre dossier'));
+children.push(p([
+  t("Vous le choisissez au premier lancement (§ 1.5), puis à tout moment par "),
+  ui('Fichier > Dossier des données et chiffrement…'), t(" : un sous-dossier « Fructificare » est créé à l'emplacement désigné."),
+]));
+children.push(bullet([b('Changer de dossier…'), t(" : vos sauvegardes et vos documents importés y sont déplacés. Tout est copié avant que l'ancien dossier ne soit vidé.")]));
+children.push(bullet([b('Reprendre un dossier existant'), t(" : si le dossier désigné contient déjà des sauvegardes Fructificare (clé USB, autre ordinateur), l'application redémarre sur ces données. Celles que vous aviez à l'écran restent dans l'ancien dossier.")]));
+children.push(bullet([b("Revenir au dossier de l'application"), t(" : le chemin inverse, avec les mêmes règles.")]));
+children.push(gap(100));
+children.push(bonASavoir([
+  new TextRun({ text: "Disque débranché ? ", bold: true, size: 21 }),
+  new TextRun({ text: "Si le dossier choisi est introuvable au démarrage, Fructificare le signale et n'écrit rien : rebranchez le disque puis cliquez sur « Réessayer », ou désignez un autre dossier.", size: 21 }),
+]));
+children.push(gap(120));
 
 children.push(p([
   t("Fructificare enregistre tout seul, quelques secondes après chaque modification, et conserve les "),
@@ -92,7 +107,7 @@ children.push(p([
 ]));
 
 children.push(h3('Activer'));
-children.push(step([t("Paramètres → "), ui('Sécurité'), t(" → "), ui('Chiffrer mes sauvegardes'), t('.')], 3));
+children.push(step([t("Paramètres → "), ui('Sécurité'), t(" → "), ui('Chiffrer mes sauvegardes'), t(", ou "), ui('Fichier > Dossier des données et chiffrement…')], 3));
 children.push(step("Choisissez une phrase secrète d'au moins 12 caractères, puis validez.", 3));
 children.push(step("La sauvegarde en cours est réécrite chiffrée, et les sauvegardes restées en clair sont supprimées.", 3));
 
@@ -110,7 +125,7 @@ children.push(p([
   t("et il est "), b('automatiquement réenregistré chiffré'), t(". La conversion se fait donc toute seule, par un simple import."),
 ]));
 children.push(p([
-  t("Seules les sauvegardes automatiques du dossier de l'application sont effacées à l'activation. "),
+  t("Seules les sauvegardes automatiques de votre dossier des données sont effacées à l'activation. "),
   t("Vos exports rangés ailleurs — Bureau, clé USB, disque externe — ne sont pas touchés, et restent en clair jusqu'à ce que vous les réimportiez."),
 ]));
 

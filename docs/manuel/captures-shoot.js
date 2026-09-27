@@ -33,11 +33,14 @@ const VIEWPORT = { width: 1440, height: 950, deviceScaleFactor: 1.5 };
 //   route    chemin applicatif ; 'envelope' ouvre la première fiche enveloppe
 //   avant    actions à jouer avant la prise : clic sur un libellé, ouverture d'onglet…
 //   cadre    texte identifiant le bloc à cadrer ; absent = plein écran
-//   garde    ne pas fermer la fenêtre de bienvenue (figure 1.1)
+//   garde    ne pas fermer la fenêtre de bienvenue (figure 1.2)
 //
 const PRISES = [
-  { fig: '1.1', route: '/', garde: true, dialogue: true },
-  { fig: '1.2', route: '/', cadre: 'Progression du tutoriel' },
+  // Figures 1.1.1 et 1.1.2 (assistant du premier lancement) : absentes d'ici, l'assistant
+  // n'existe que dans l'application de bureau. Prises sur un profil vierge, le chemin du
+  // dossier remplacé par un chemin générique (il contient le nom de la session Windows).
+  { fig: '1.2', route: '/', garde: true, dialogue: true },
+  { fig: '1.3', route: '/', cadre: 'Progression du tutoriel' },
 
   { fig: '3.1', route: '/' },
   { fig: '3.2', route: '/', avant: [{ aria: 'Notifications' }], cadre: 'Notifications' },

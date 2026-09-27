@@ -7,6 +7,8 @@
 //! frontend through the `menu-action` event (the logic — saving, theme, language,
 //! navigation — lives on the React side, where the application's state is).
 
+mod dossier_donnees;
+
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Runtime, Url, WebviewWindowBuilder};
 
@@ -67,6 +69,13 @@ fn construire_menu<R: Runtime>(handle: &AppHandle<R>, anglais: bool) -> tauri::R
         .item(&MenuItemBuilder::with_id("import", l("Importer une sauvegarde…", "Import a backup…")).build(handle)?)
         .item(&MenuItemBuilder::with_id("recent-files", l("Fichiers récents…", "Recent files…")).build(handle)?)
         .separator()
+        .item(
+            &MenuItemBuilder::with_id(
+                "data-folder",
+                l("Dossier des données et chiffrement…", "Data folder & encryption…"),
+            )
+            .build(handle)?,
+        )
         .item(&MenuItemBuilder::with_id("settings", l("Paramètres", "Settings")).build(handle)?);
     // Sur macOS, « Quitter » appartient au menu de l'application (voir plus bas).
     #[cfg(not(target_os = "macos"))]
@@ -157,7 +166,15 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         // Français au démarrage ; le frontend retraduit dès que la langue du fichier est connue.
         .menu(|handle| construire_menu(handle, false))
-        .invoke_handler(tauri::generate_handler![set_menu_language])
+        .manage(dossier_donnees::Choix::default())
+        .invoke_handler(tauri::generate_handler![
+            set_menu_language,
+            dossier_donnees::data_folder_info,
+            dossier_donnees::data_folder_pick,
+            dossier_donnees::data_folder_apply,
+            dossier_donnees::data_folder_open,
+            dossier_donnees::document_open,
+        ])
         .on_menu_event(|app, event| {
             // Relaie l'identifiant de l'item cliqué au frontend.
             let _ = app.emit("menu-action", event.id().as_ref());
@@ -174,6 +191,9 @@ pub fn run() {
                 .cloned()
                 .expect("la fenêtre « main » doit être déclarée dans tauri.conf.json");
             let handle = app.handle().clone();
+            // Dossier des données choisi par l'utilisateur : ouvert à la webview avant
+            // qu'elle ne démarre (voir dossier_donnees.rs).
+            dossier_donnees::autoriser_au_demarrage(&handle);
             WebviewWindowBuilder::from_config(&handle, &config)?
                 .on_navigation(navigation_autorisee)
                 .build()?;

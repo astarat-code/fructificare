@@ -13,11 +13,16 @@ serveur. Elle n'expose aucun port et n'émet aucune requête réseau.
   validés strictement : un chemin qui tenterait de sortir des dossiers de l'application est
   refusé, jamais ouvert ni supprimé.
 - **Débordement de privilèges.** L'accès disque est limité par la configuration Tauri aux
-  dossiers de l'application. Tout autre fichier n'est accessible que pour la session en
-  cours, et seulement après que l'utilisateur l'a désigné dans une boîte de dialogue native.
+  dossiers de l'application. Un dossier des données choisi par l'utilisateur y est ajouté au
+  démarrage, mais seul le côté natif peut enregistrer ce choix : le dossier vient d'une boîte
+  de dialogue native, le réglage est stocké hors de portée de l'interface, et aucune commande
+  n'accepte de chemin venant d'elle — un script compromis ne peut pas élargir son propre
+  accès. Tout autre fichier n'est accessible que pour la session en cours, et seulement après
+  que l'utilisateur l'a désigné dans une boîte de dialogue native.
 - **Ouverture de fichier détournée.** L'application ne peut faire ouvrir par le système que
-  des fichiers `.pdf` (documents, manuel) ou son dossier de documents : une sauvegarde
-  piégée ne peut pas lui faire lancer un `.bat`, un `.exe` ou un raccourci.
+  des fichiers `.pdf` (documents, manuel) ou son dossier des données : une sauvegarde
+  piégée ne peut pas lui faire lancer un `.bat`, un `.exe` ou un raccourci. Les documents
+  importés sont ouverts par une commande native qui revalide leur chemin.
 - **Injection de contenu.** Une Content-Security-Policy stricte interdit tout script externe
   ou en ligne, ainsi que toute connexion sortante.
 - **Navigation vers l'extérieur.** La fenêtre ne peut naviguer que vers l'interface locale ;

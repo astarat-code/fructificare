@@ -28,10 +28,10 @@ children.push(h2('12.1  Where your imported documents go'));
 
 children.push(p([
   t("Like the rest of Fructificare, these files stay stored locally. On import, the PDF is "),
-  b('copied'), t(" into a folder of the application: "),
+  b('copied'), t(" into the "), code('documents imp'), t(" subfolder of your data folder, chosen on first launch. By default: "),
 ]));
 children.push(p([code('%APPDATA%\\app.fructificare.desktop\\documents imp\\')], { spacing: { after: 60 } }));
-children.push(p([t("On Linux and macOS, the application folder is elsewhere: see § 14.3.")], { spacing: { after: 160 } }));
+children.push(p([t("On Linux and macOS, or if you chose another folder, see § 14.3.")], { spacing: { after: 160 } }));
 
 children.push(p([
   t("Each envelope gets its own subfolder there; documents not attached to an envelope go into a “global” subfolder."),
@@ -42,7 +42,7 @@ children.push(bonASavoir("It is a copy that goes into the application's folder; 
 children.push(gap(100));
 children.push(attention([
   new TextRun({ text: "The JSON backup file only contains the metadata (name, date, type, path), never the PDF itself. ", size: 21 }),
-  new TextRun({ text: "If you change computers, also copy the “documents imp” folder: otherwise your files will not follow and the program will show “File not found”.", size: 21, bold: true }),
+  new TextRun({ text: "If you change computers, copy your whole data folder, “documents imp” included: otherwise your files will not follow and the program will show “File not found”.", size: 21, bold: true }),
 ]));
 
 // ── 12.2 ───────────────────────────────────────────────────────────────────

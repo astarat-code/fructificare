@@ -12,11 +12,15 @@ It opens no port and makes no network request.
 - **A booby-trapped backup file.** Document paths read from a backup are validated strictly:
   a path trying to escape the application's folders is refused, never opened nor deleted.
 - **Privilege creep.** Disk access is limited by the Tauri configuration to the
-  application's own folders. Any other file is reachable for the current session only, and
-  only after you designated it in a native dialog.
+  application's own folders. A data folder you chose yourself is added at startup, but only
+  the native side can record that choice: the folder comes from a native dialog, the setting
+  is stored outside the interface's reach, and no command accepts a path from it — a
+  compromised script cannot widen its own access. Any other file is reachable for the
+  current session only, and only after you designated it in a native dialog.
 - **Hijacked file opening.** The only things the application can ask the system to open are
-  `.pdf` files (documents, manual) or its documents folder: a hostile backup cannot make it
-  launch a `.bat`, an `.exe` or a shortcut.
+  `.pdf` files (documents, manual) or its data folder: a hostile backup cannot make it
+  launch a `.bat`, an `.exe` or a shortcut. Imported documents are opened by a native
+  command that validates the path again.
 - **Content injection.** A strict Content-Security-Policy forbids inline and remote scripts,
   as well as any outbound connection.
 - **Navigation to the outside.** The window can only navigate to the local interface; any

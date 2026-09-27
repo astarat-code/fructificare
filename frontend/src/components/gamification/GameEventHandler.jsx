@@ -19,6 +19,7 @@ import flameService        from '../../services/flameService';
 import WelcomeModal        from './WelcomeModal';
 import ConfettiBurst       from './Confetti';
 import { useLanguage }     from '../../context/LanguageContext';
+import { getDataFolderInfo } from '../../lib/dataFolder';
 
 // ── Utilitaires ────────────────────────────────────────────────────────────────
 
@@ -44,10 +45,20 @@ export default function GameEventHandler() {
       const already = gState?.flags?.onboardingWelcomeShown === true;
       const { completedCount, allDone } = questService.getCurrentQuestState();
       // Affichée seulement pour un nouvel utilisateur (tutoriel non entamé) et une seule fois.
-      if (gamifOn && !already && completedCount === 0 && !allDone) {
-        setShowWelcome(true);
-      }
-    } catch (_) { /* état indisponible : on n'affiche rien */ }
+      if (!(gamifOn && !already && completedCount === 0 && !allDone)) return undefined;
+    } catch (_) { return undefined; /* état indisponible : on n'affiche rien */ }
+    // Au tout premier lancement, l'assistant du dossier des données passe d'abord : les
+    // deux fenêtres de bienvenue ne doivent pas s'empiler.
+    let annule = false;
+    const afficher = () => { if (!annule) setShowWelcome(true); };
+    getDataFolderInfo()
+      .then((info) => {
+        if (info && (info.firstRun || !info.available)) {
+          window.addEventListener('fructificare-data-folder-done', afficher, { once: true });
+        } else afficher();
+      })
+      .catch(afficher);
+    return () => { annule = true; window.removeEventListener('fructificare-data-folder-done', afficher); };
   }, []);
 
   const handleWelcomeContinue = () => {
