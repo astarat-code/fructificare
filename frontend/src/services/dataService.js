@@ -294,6 +294,7 @@ import gamificationService from './gamificationService';
 import { validateBackup } from './importValidation';
 import documentService from './documentService';
 import { versementsPea } from '../lib/peaCap';
+import { montantNet, montantFraisCompris, fraisDeVersement, normaliserFraisAjoutes } from '../lib/transactionFees';
 import { estRetraitImposable } from '../lib/taxableWithdrawal';
 import { plusValuesDeLAnnee } from '../lib/plusValuesRachats';
 import { getTaxMaturity } from '../lib/taxMaturity';
@@ -498,10 +499,28 @@ function setData(data) {
     fire_settings: data.fire_settings || { monthly_need: 2500, withdrawal_rate: 4 },
   };
   _pruneOrphanCalibrations();
+  normaliserFraisAjoutes(_currentData.transactions);
   // Restaurer les préférences applicatives si présentes
   if (data.appPreferences && typeof data.appPreferences === 'object') {
     _restoreAppPreferences(data.appPreferences);
   }
+}
+
+/**
+ * Applique `normaliserFraisAjoutes` aux simulations. Une simulation tient ses totaux à
+ * jour mouvement par mouvement : les frais retirés du montant investi sont donc aussi
+ * retirés du solde et des versements de l'enveloppe simulée.
+ */
+function _normaliserFraisSimulations() {
+  (_simulationsData.simulations || []).forEach(sim => {
+    normaliserFraisAjoutes(sim.transactions).forEach(({ tx, ecart }) => {
+      if (tx.type !== 'deposit') return;
+      const p = (sim.portfolios || []).find(pp => pp.id === tx.portfolio_id);
+      if (!p) return;
+      p.balance        = Math.round(((p.balance || 0) - ecart) * 100) / 100;
+      p.total_deposits = Math.round(((p.total_deposits || 0) - ecart) * 100) / 100;
+    });
+  });
 }
 
 function saveData() {
@@ -707,9 +726,11 @@ function applyImportedData(rawData, { save = true } = {}) {
 
   _currentData = importedData;
   _pruneOrphanCalibrations();
+  normaliserFraisAjoutes(_currentData.transactions);
 
   if (data.simulations && Array.isArray(data.simulations)) {
     _simulationsData = { simulations: data.simulations };
+    _normaliserFraisSimulations();
   }
   addLog(`DATA_LOADED: ${importedData.portfolios.length} portfolios, ${importedData.transactions.length} transactions, ${(importedData.calibrations || []).length} calibrations`);
 
@@ -859,8 +880,8 @@ function getPortfolios() {
     // Pour les versements: on prend le montant net (après frais). `deps` = tous les
     // dépôts (sert au solde/pool d'actifs), y compris les achats financés par les espèces.
     const deps = txns.filter(t => t.type === 'deposit').reduce((s, t) => s + (t.net_amount || t.amount), 0);
-    // Pour les retraits: le solde diminue du montant brut (frais inclus car sortis de l'enveloppe).
-    const wdsGross = txns.filter(t => t.type === 'withdrawal').reduce((s, t) => s + (t.amount || 0), 0);
+    // Pour les retraits: le solde diminue du montant frais compris (les frais sortent de l'enveloppe).
+    const wdsGross = txns.filter(t => t.type === 'withdrawal').reduce((s, t) => s + montantFraisCompris(t), 0);
 
     // ── Flux EXTERNES vs INTERNES (dérivés du modèle espèces) ─────────────────────
     //   • Versement externe = NOUVEAUX fonds entrant de l'extérieur (part hors espèces).
@@ -869,6 +890,9 @@ function getPortfolios() {
     //     Une vente dont le produit reste en espèces à l'intérieur n'est PAS une vente externe.
     const externalDeps = txns.filter(t => t.type === 'deposit')
       .reduce((s, t) => s + (t.new_funds_amount != null ? t.new_funds_amount : (t.net_amount || t.amount)), 0);
+    // Frais payés en plus de l'argent investi : ils ont quitté la poche de l'utilisateur
+    // sans entrer dans l'enveloppe. Affichés avec les versements, exclus de tout rendement.
+    const depositFees = txns.reduce((s, t) => s + fraisDeVersement(t), 0);
     const internalBuys = txns.filter(t => t.type === 'deposit' && t.from_cash_amount)
       .reduce((s, t) => s + (t.from_cash_amount || 0), 0);
     const externalWds = txns.filter(t => t.type === 'withdrawal' && !t.keep_in_cash)
@@ -916,12 +940,11 @@ function getPortfolios() {
     const totalFees = Math.round((transactionFees + annualFeesAccumulated) * 100) / 100;
     
     // Espèces: calculer le solde en espèces
-    // Vente conservée en espèces → crédit = montant brut − frais de transaction
-    // (les frais sortent toujours des espèces, quel que soit le sens des frais).
+    // Vente conservée en espèces → crédit = montant reçu, net de frais.
     // Achat financé par les espèces (from_cash_amount) → diminue le solde espèces.
     const cashFromSales = txns
       .filter(t => t.type === 'withdrawal' && t.keep_in_cash)
-      .reduce((s, t) => s + ((t.amount || 0) - (t.fees_amount || 0)), 0);
+      .reduce((s, t) => s + (t.net_amount ?? t.amount ?? 0), 0);
     const cashUsedForPurchases = txns
       .filter(t => t.type === 'deposit' && t.from_cash_amount)
       .reduce((s, t) => s + (t.from_cash_amount || 0), 0);
@@ -932,11 +955,17 @@ function getPortfolios() {
       // « Versements » / « Ventes » = flux EXTERNES uniquement (hors recyclage interne des espèces).
       total_deposits: Math.round(externalDeps * 100) / 100,
       total_withdrawals: Math.round(externalWds * 100) / 100,
+      // Frais des versements, et versements frais compris (ce que l'utilisateur a payé).
+      // `total_deposits` reste le montant INVESTI : c'est lui qui sert aux rendements.
+      deposit_fees: Math.round(depositFees * 100) / 100,
+      total_paid: Math.round((externalDeps + depositFees) * 100) / 100,
       // AFFICHAGE « Versements » : capital net en place = versements − retraits RÉELS
       // (externes). Les ventes conservées en espèces ne sont PAS déduites ici (l'argent
       // reste sur l'enveloppe). N.B. : n'affecte QUE l'affichage — le calcul des
       // rendements/PNL continue de traiter une vente-espèces comme un retrait.
       net_deposits: Math.round((externalDeps - externalWds) * 100) / 100,
+      // Le même, frais de versement compris : c'est le chiffre AFFICHÉ sous « Versements ».
+      net_paid: Math.round((externalDeps + depositFees - externalWds) * 100) / 100,
       // Détail des transferts internes (affiché en sous-ligne des tuiles Versements / Ventes).
       internal_buys: Math.round(internalBuys * 100) / 100,
       internal_sells: Math.round(internalSells * 100) / 100,
@@ -1114,18 +1143,17 @@ function createTransaction(portfolioId, tx) {
   const feesAmount = feesType === 'euro'
     ? Math.round(feeInput * 100) / 100
     : Math.round(amount * feesPct / 100 * 100) / 100;
-  // Sens des frais de transaction (le montant BRUT saisi reste `amount` dans les deux cas) :
-  //   'deducted' (défaut) → net = montant brut − frais (frais prélevés sur le montant)
-  //   'added'            → net = montant brut + frais (frais payés en plus, intégrés au net)
-  // Le MONTANT des frais (feesAmount) est identique dans les deux cas.
+  // Sens des frais de transaction (voir lib/transactionFees) :
+  //   'deducted' (défaut) → investi = montant saisi − frais (frais prélevés sur le montant)
+  //   'added'            → investi = montant saisi (frais payés en plus, hors montant investi)
   const feeDirection = tx.fee_direction === 'added' ? 'added' : 'deducted';
-  const netAmount = Math.round((feeDirection === 'added' ? amount + feesAmount : amount - feesAmount) * 100) / 100;
+  const netAmount = montantNet(amount, feesAmount, feeDirection);
   
   // Calculer le solde espèces actuel
   const txns = store.transactions.filter(t => t.portfolio_id === portfolioId);
   const cashFromSales = txns
     .filter(t => t.type === 'withdrawal' && t.keep_in_cash)
-    .reduce((s, t) => s + ((t.amount || 0) - (t.fees_amount || 0)), 0);
+    .reduce((s, t) => s + (t.net_amount ?? t.amount ?? 0), 0);
   const cashUsedForPurchases = txns
     .filter(t => t.type === 'deposit' && t.from_cash_amount)
     .reduce((s, t) => s + (t.from_cash_amount || 0), 0);
@@ -1337,7 +1365,7 @@ function updateTransaction(portfolioId, txId, updates) {
     ? Math.round(feeInput * 100) / 100
     : Math.round(amount * feesPct / 100 * 100) / 100;
   const feeDirection = (updates.fee_direction ?? oldTx.fee_direction) === 'added' ? 'added' : 'deducted';
-  const netAmount = Math.round((feeDirection === 'added' ? amount + feesAmount : amount - feesAmount) * 100) / 100;
+  const netAmount = montantNet(amount, feesAmount, feeDirection);
 
   store.transactions[idx] = {
     ...oldTx,
@@ -2076,9 +2104,9 @@ function addSimulationTransaction(simulationId, portfolioId, txData) {
   const fees_amount = feesType === 'euro'
     ? Math.round(feeInput * 100) / 100
     : Math.round(amount * fees_pct / 100 * 100) / 100;
-  // Sens des frais : 'deducted' (défaut) net = brut − frais ; 'added' net = brut + frais.
+  // Sens des frais : 'deducted' (défaut) investi = saisi − frais ; 'added' investi = saisi.
   const feeDirection = txData.fee_direction === 'added' ? 'added' : 'deducted';
-  const net_amount = Math.round((feeDirection === 'added' ? amount + fees_amount : amount - fees_amount) * 100) / 100;
+  const net_amount = montantNet(amount, fees_amount, feeDirection);
   // Pour un retrait : net reçu = montant − frais (cohérent avec le tableau de bord)
   const balanceDelta = txData.type === 'deposit' ? net_amount : net_amount;
 
@@ -2321,6 +2349,7 @@ function createSimulationMovementTemplate(simulationId, data) {
     portfolio_id: data.portfolio_id,
     fees_pct: parseFloat(data.fees_pct) || 0,
     fees_type: data.fees_type === 'euro' ? 'euro' : 'percent',
+    fee_direction: data.fee_direction === 'added' ? 'added' : 'deducted',
     annual_fees_pct: parseFloat(data.annual_fees_pct) || 0,
     annual_fees_type: data.annual_fees_type === 'euro' ? 'euro' : 'percent',
     asset_type: data.asset_type || null,
@@ -2369,6 +2398,7 @@ function createSimulationRegularMovement(simulationId, data) {
     asset_allocations: Array.isArray(data.asset_allocations) ? data.asset_allocations : [],
     fees_pct: parseFloat(data.fees_pct) || 0,
     fees_type: data.fees_type === 'euro' ? 'euro' : 'percent',
+    fee_direction: data.fee_direction === 'added' ? 'added' : 'deducted',
     annual_fees_pct: parseFloat(data.annual_fees_pct) || 0,
     annual_fees_type: data.annual_fees_type === 'euro' ? 'euro' : 'percent',
     status: 'active',
@@ -2390,11 +2420,39 @@ function updateSimulationRegularMovement(simulationId, id, updates) {
     asset_allocations: updates.asset_allocations !== undefined
       ? updates.asset_allocations
       : (sim.regular_movements[idx].asset_allocations || []),
+    // Réglages modifiés : une confirmation de dépassement est à redonner.
+    allow_overdraw: false,
+    overdraw_pending: null,
   };
   updateSimulation(simulationId, { regular_movements: sim.regular_movements });
   try { syncSimulationRegularMovements(simulationId); } catch (_) {}
   return sim.regular_movements[idx];
 }
+/** Retraits récurrents d'une simulation en attente pour dépassement (voir getRecurringOverdraws). */
+function getSimulationRecurringOverdraws(simulationId) {
+  const sim = getSimulation(simulationId);
+  if (!sim) return [];
+  return (sim.regular_movements || [])
+    .filter(rm => rm.status === 'active' && rm.overdraw_pending)
+    .map(rm => ({
+      id: rm.id,
+      note: rm.note || '',
+      portfolio: ((sim.portfolios || []).find(p => p.id === rm.portfolio_id) || {}).name || '',
+      ...rm.overdraw_pending,
+    }));
+}
+
+/** Confirmation de poursuite d'un retrait récurrent de simulation (voir confirmRecurringOverdraw). */
+function confirmSimulationRecurringOverdraw(simulationId, id, untilDate) {
+  const sim = getSimulation(simulationId);
+  const rm = sim && (sim.regular_movements || []).find(r => r.id === id);
+  if (!rm) return;
+  rm.allow_overdraw = true;
+  rm.overdraw_pending = null;
+  updateSimulation(simulationId, { regular_movements: sim.regular_movements });
+  try { syncSimulationRegularMovements(simulationId, untilDate); } catch (_) {}
+}
+
 function stopSimulationRegularMovement(simulationId, id) {
   const todayStr = new Date().toISOString().split('T')[0];
   return updateSimulationRegularMovement(simulationId, id, { end_date: todayStr, status: 'stopped' });
@@ -2464,6 +2522,8 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
         .filter(t => t.from_recurring_id === rm.id || (rm.original_id && t.from_recurring_id === rm.original_id))
         .map(t => t.date));
       const toApply = allDates.filter(d => !existing.has(d));
+      // Attente réévaluée à chaque passage, comme sur le tableau de bord.
+      if (rm.overdraw_pending) { rm.overdraw_pending = null; changed = true; }
       if (!toApply.length) continue;
       const portfolio = (sim.portfolios || []).find(p => p.id === rm.portfolio_id);
       if (!portfolio) continue;
@@ -2475,10 +2535,23 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
       const annualFeeInput = parseFloat(rm.annual_fees_pct) || 0;
       for (const date of toApply) {
         const amount   = parseFloat(rm.amount) || 0;
+        // Même règle que sur le tableau de bord (voir syncRegularMovements) : un retrait
+        // récurrent qui dépasse le contenu de l'enveloppe simulée met la série en attente.
+        // Le contenu est celui des mouvements et de la dernière calibration : le rendement
+        // projeté n'y est pas compté.
+        if (rm.type === 'withdrawal' && !rm.allow_overdraw) {
+          const cals = (sim.calibrations || []).filter(c => c.portfolio_id === rm.portfolio_id).sort((a, b) => a.date.localeCompare(b.date));
+          const controle = checkWithdrawal(rm.portfolio_id, amount, null, { balance: portfolio.balance, calibrations: cals, transactions: [] });
+          if (controle.depasse) {
+            rm.overdraw_pending = { date, amount, disponible: Math.round(controle.disponible * 100) / 100 };
+            changed = true;
+            break;
+          }
+        }
         const totalFee = feesType === 'euro'
           ? Math.min(feeInput, amount)
           : Math.round(amount * feeInput / 100 * 100) / 100;
-        const netTotal = Math.round((feeDirection === 'added' ? amount + totalFee : amount - totalFee) * 100) / 100;
+        const netTotal = montantNet(amount, totalFee, feeDirection);
         const allocations = (rm.asset_allocations && rm.asset_allocations.length > 0)
           ? rm.asset_allocations
           : [{ type: rm.asset_types?.[0] || 'autre', pct: 100 }];
@@ -2489,7 +2562,7 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
           const allocAmount = Math.round(amount * ((alloc.pct ?? 100) / 100) * 100) / 100;
           // Frais répartis proportionnellement à l'allocation
           const allocFee = amount > 0 ? Math.round(totalFee * (allocAmount / amount) * 100) / 100 : 0;
-          const allocNet = Math.round((feeDirection === 'added' ? allocAmount + allocFee : allocAmount - allocFee) * 100) / 100;
+          const allocNet = montantNet(allocAmount, allocFee, feeDirection);
           const allocAnnualEuro = (annualFeesType === 'euro' && amount > 0)
             ? Math.round(annualFeeInput * (allocAmount / amount) * 100) / 100
             : 0;
@@ -2527,7 +2600,7 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
       }
     } catch (e) { console.warn('[SimRecurring] sync error', rm.id, e); }
   }
-  if (applied > 0 || changed) updateSimulation(simulationId, { portfolios: sim.portfolios, transactions: sim.transactions });
+  if (applied > 0 || changed) updateSimulation(simulationId, { portfolios: sim.portfolios, transactions: sim.transactions, regular_movements: sim.regular_movements });
   return applied + (changed ? 1 : 0);
 }
 
@@ -2846,6 +2919,7 @@ function exportSimulationsToJSON() {
 function importSimulationsFromJSON(json) {
   if (json && json.simulations) {
     _simulationsData = json;
+    _normaliserFraisSimulations();
     saveSimulations();
   }
 }
@@ -2901,7 +2975,7 @@ function getAssetTypeStats() {
       stats[statKey].deposits += net;
       stats[statKey].balance += net;
     } else if (tx.type === 'withdrawal') {
-      const gross = tx.amount || tx.net_amount;
+      const gross = montantFraisCompris(tx);
       const net = tx.net_amount || tx.amount;
       stats[statKey].withdrawals += net;
       stats[statKey].balance -= gross;
@@ -2922,13 +2996,117 @@ function getAssetTypeStats() {
 /**
  * Répartition par type d'actif, sur base des VERSEMENTS ou de la VALEUR RÉELLE.
  * @param {boolean} useRealValue
- *   false → soldes des versements (== getAssetTypeStats().balance).
+ *   false → soldes des versements, calculés enveloppe par enveloppe : un actif survendu
+ *           dans une enveloppe (solde négatif) n'y compte pour rien, au lieu de venir
+ *           en déduction du même actif détenu dans une autre enveloppe.
  *   true  → valeur réelle par enveloppe :
  *           • calibration avec détail par actif (niveau 2) → valeurs réelles par actif ;
  *           • calibration totale seule (niveau 1) → total réparti au prorata des versements ;
  *           • enveloppe non calibrée → soldes des versements (repli).
  * @returns {Object<string, number>} { assetType: value }
  */
+/** Composition par actif d'une enveloppe, base versements (hors transactions de calibration). */
+function compositionVersements(portfolioId, txs = null) {
+  const envAsset = {};
+  (txs || getTransactions(portfolioId)).filter(t => !_isCalibrationTx(t)).forEach(t => {
+    const k   = resolveAssetType(t) || 'non_defini';
+    const net = t.net_amount ?? t.amount ?? 0;
+    if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
+    else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - montantFraisCompris(t);
+  });
+  return envAsset;
+}
+
+/**
+ * Lignes détenues dans une enveloppe : ce qui reste investi, regroupé par note et par
+ * type d'actif. Deux actifs achetés par un même mouvement (un récurrent réparti entre un
+ * fonds en euros et un ETF) forment donc deux lignes, que l'on peut vendre séparément.
+ *
+ * @param {string} portfolioId
+ * @param {Array|null} [txs] — mouvements de l'enveloppe, quand ils ne sont pas ceux du
+ *   tableau de bord (enveloppe d'une simulation)
+ * @returns {Array<{ cle, note, asset_type, custom_asset_type, type_resolu, investi, unites }>}
+ *   lignes dont le montant investi restant est positif, de la plus grosse à la plus petite.
+ */
+function getHeldLines(portfolioId, txs = null) {
+  const lignes = new Map();
+  (txs || getTransactions(portfolioId)).filter(t => !_isCalibrationTx(t)).forEach(t => {
+    if (t.type !== 'deposit' && t.type !== 'withdrawal') return;
+    const note = (t.note || '').trim();
+    const typeResolu = resolveAssetType(t) || 'non_defini';
+    const cle = `${note}|${typeResolu}`;
+    if (!lignes.has(cle)) {
+      lignes.set(cle, { cle, note, asset_type: t.asset_type || null, custom_asset_type: t.custom_asset_type || null,
+        type_resolu: typeResolu, investi: 0, unites: 0 });
+    }
+    const l = lignes.get(cle);
+    const signe = t.type === 'deposit' ? 1 : -1;
+    l.investi += signe * (t.type === 'deposit' ? (t.net_amount ?? t.amount ?? 0) : montantFraisCompris(t));
+    const q = parseFloat(t.quantity);
+    if (!isNaN(q)) l.unites += signe * q;
+  });
+  return [...lignes.values()]
+    .map(l => ({ ...l, investi: Math.round(l.investi * 100) / 100, unites: Math.round(l.unites * 10000) / 10000 }))
+    .filter(l => l.investi > 0.005)
+    .sort((a, b) => b.investi - a.investi);
+}
+
+/**
+ * Un retrait dépasse-t-il ce que l'enveloppe contient ? Sert à demander confirmation,
+ * jamais à bloquer : vendre plus que le montant investi est normal quand la ligne a pris
+ * de la valeur.
+ *
+ * @param {string} portfolioId
+ * @param {number} montant            montant du retrait, frais compris
+ * @param {string|null} [typeActif]   type d'actif vendu, tel qu'enregistré sur le mouvement
+ * @returns {{ depasse: boolean, motif: 'enveloppe'|'actif'|null, disponible: number }}
+ */
+function checkWithdrawal(portfolioId, montant, typeActif = null, contexte = null) {
+  // `contexte` : { balance, calibrations, transactions } d'une enveloppe de simulation.
+  const p = contexte || getPortfolio(portfolioId);
+  if (!p) return { depasse: false, motif: null, disponible: 0 };
+  const cals = contexte ? (contexte.calibrations || []) : getCalibrations(portfolioId);
+  const derniere = cals.length ? cals[cals.length - 1] : null;
+  // Valeur de référence : la plus favorable entre la dernière valeur constatée et le
+  // montant investi, pour ne pas alerter à tort juste après un versement.
+  const valeur = Math.max(derniere ? derniere.total_value : 0, p.balance || 0);
+  if (montant > valeur + 0.005) return { depasse: true, motif: 'enveloppe', disponible: Math.max(0, valeur) };
+  if (typeActif) {
+    const cle = resolveAssetType({ portfolio_id: portfolioId, asset_type: typeActif });
+    const investi = compositionVersements(portfolioId, contexte ? contexte.transactions : null)[cle] || 0;
+    // Sans valeur constatée par actif, seul le montant investi est connu : on ne signale
+    // que le cas où l'enveloppe ne détient rien, ou presque, de cet actif.
+    if (investi <= 0.005) return { depasse: true, motif: 'actif', disponible: 0 };
+  }
+  return { depasse: false, motif: null, disponible: valeur };
+}
+
+/**
+ * Détail par actif d'une calibration, prêt pour la répartition :
+ *   • une position saisie d'après un mouvement type multi-actifs est ventilée selon la
+ *     répartition de ce modèle, au lieu d'être rangée en bloc dans « Autres » ;
+ *   • les valeurs sont ramenées au total de la calibration quand leur somme en diffère
+ *     (détail partiel, ou pourcentages saisis à la place de montants).
+ */
+function _repartitionCalibration(cal) {
+  const modeles = getData().movement_templates || [];
+  const items = [];
+  (cal.asset_breakdown || []).forEach(item => {
+    if (!(item.value > 0)) return;
+    const tpl = item.template_id ? modeles.find(m => m.id === item.template_id) : null;
+    const allocs = tpl && Array.isArray(tpl.multi_asset_allocations) ? tpl.multi_asset_allocations : [];
+    const totalPct = allocs.reduce((s2, a) => s2 + (parseFloat(a.pct) || 0), 0);
+    if (allocs.length > 0 && totalPct > 0) {
+      allocs.forEach(a => items.push({ asset_type: a.type || 'autre', value: item.value * (parseFloat(a.pct) || 0) / totalPct }));
+    } else {
+      items.push({ asset_type: item.asset_type, value: item.value });
+    }
+  });
+  const somme = items.reduce((s2, i) => s2 + i.value, 0);
+  const facteur = somme > 0 && cal.total_value > 0 ? cal.total_value / somme : 1;
+  return items.map(i => ({ asset_type: i.asset_type, value: i.value * facteur }));
+}
+
 function getAssetAllocation(useRealValue) {
   const totals = {};
   const add = (type, v) => {
@@ -2937,8 +3115,9 @@ function getAssetAllocation(useRealValue) {
   };
 
   if (!useRealValue) {
-    const stats = getAssetTypeStats();
-    Object.entries(stats).forEach(([type, s]) => { if (s.balance > 0) add(type, s.balance); });
+    getPortfolios().forEach(p => {
+      Object.entries(compositionVersements(p.id)).forEach(([k, v]) => { if (v > 0) add(k, v); });
+    });
     return totals;
   }
 
@@ -2946,21 +3125,14 @@ function getAssetAllocation(useRealValue) {
     const cals    = getCalibrations(p.id);
     const lastCal = cals.length ? cals[cals.length - 1] : null;
 
-    // Composition par actif de l'enveloppe, base versements (hors transactions de calibration)
-    const envAsset = {};
-    getTransactions(p.id).filter(t => !_isCalibrationTx(t)).forEach(t => {
-      const k   = resolveAssetType(t) || 'non_defini';
-      const net = t.net_amount ?? t.amount ?? 0;
-      if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
-      else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - (t.amount ?? t.net_amount ?? 0);
-    });
+    const envAsset = compositionVersements(p.id);
     const depTotal = Object.values(envAsset).reduce((s, v) => s + Math.max(0, v), 0);
 
     if (lastCal) {
       const calBreakdown = [...cals].reverse().find(c => c.asset_breakdown && c.asset_breakdown.length > 0);
       if (calBreakdown) {
         // Niveau 2 : valeurs réelles par actif
-        calBreakdown.asset_breakdown.forEach(item => { if (item.value > 0) add(item.asset_type, item.value); });
+        _repartitionCalibration(calBreakdown).forEach(item => { if (item.value > 0) add(item.asset_type, item.value); });
       } else if (depTotal > 0) {
         // Niveau 1 : total réparti au prorata des versements par actif
         Object.entries(envAsset).forEach(([k, v]) => { if (v > 0) add(k, lastCal.total_value * (v / depTotal)); });
@@ -3561,6 +3733,10 @@ function addCalibration(cal) {
     asset_breakdown: cal.asset_breakdown || null,
     created_at: new Date().toISOString(),
   };
+  // Une calibration constate la valeur d'un jour : en saisir une seconde à la même date
+  // corrige la première, elle ne s'y ajoute pas.
+  _currentData.calibrations = _currentData.calibrations
+    .filter(c => !(c.portfolio_id === cal.portfolio_id && c.date === cal.date));
   _currentData.calibrations.push(entry);
   saveData();
   addLog(`CALIBRATION_ADDED: portfolio ${cal.portfolio_id} au ${cal.date}`);
@@ -4400,46 +4576,85 @@ function createRegularMovement(data) {
   return rm;
 }
 
-function updateRegularMovement(id, updates) {
+// Paramètres d'un mouvement récurrent dont dépendent les mouvements qu'il enregistre.
+// Changer l'un d'eux oblige à refaire les occurrences concernées ; changer autre chose
+// (note, date de fin) n'y touche pas.
+const CHAMPS_RECURRENT_HISTORIQUE = [
+  'type', 'amount', 'start_date', 'recurrence', 'portfolio_id',
+  'fees_pct', 'fees_type', 'fee_direction', 'annual_fees_pct', 'annual_fees_type',
+  'asset_types', 'asset_allocations',
+];
+const NOMS_CHAMPS_RECURRENT = {
+  type: 'type', amount: 'montant', start_date: 'date de début', recurrence: 'récurrence',
+  portfolio_id: 'enveloppe', fees_pct: 'frais', fees_type: 'frais', fee_direction: 'frais',
+  annual_fees_pct: 'frais annuels', annual_fees_type: 'frais annuels',
+  asset_types: 'répartition', asset_allocations: 'répartition',
+};
+
+/**
+ * Modifie un mouvement récurrent.
+ *
+ * Quand un paramètre qui détermine les mouvements enregistrés change (montant, type,
+ * frais, répartition, rythme…), seules les occurrences à partir de `effectiveFrom` sont
+ * refaites avec les nouveaux paramètres. Celles d'avant restent telles qu'elles ont été
+ * enregistrées : modifier un récurrent ne réécrit plus le passé par surprise.
+ *
+ * @param {string} id
+ * @param {object} updates
+ * @param {{ effectiveFrom?: string }} [options] — 'YYYY-MM-DD', au plus tard aujourd'hui.
+ *   Par défaut : aujourd'hui. Une date antérieure ou égale au début du mouvement refait
+ *   tout son historique.
+ */
+function updateRegularMovement(id, updates, options = {}) {
   const store = getData();
   const idx = (store.regular_movements || []).findIndex(rm => rm.id === id);
   if (idx === -1) throw new Error('Mouvement régulier introuvable');
   const existing = store.regular_movements[idx];
-  // Audit trail : tracer les modifications de montant
-  const auditEntries = [];
-  if (updates.amount !== undefined && parseFloat(updates.amount) !== existing.amount) {
-    auditEntries.push({
-      date:          new Date().toISOString().split('T')[0],
-      champ:         'montant',
-      ancienneValeur: existing.amount,
-      nouvelleValeur: parseFloat(updates.amount),
-    });
-  }
-  store.regular_movements[idx] = {
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const next = {
     ...existing,
     ...updates,
-    amount:                  updates.amount !== undefined ? parseFloat(updates.amount) : existing.amount,
-    asset_allocations:       updates.asset_allocations !== undefined
-                               ? updates.asset_allocations
-                               : (existing.asset_allocations || []),
-    historique_modifications: [...(existing.historique_modifications || []), ...auditEntries],
+    amount:            updates.amount !== undefined ? parseFloat(updates.amount) : existing.amount,
+    asset_allocations: updates.asset_allocations !== undefined
+                         ? updates.asset_allocations
+                         : (existing.asset_allocations || []),
   };
-  const updated = store.regular_movements[idx];
 
-  // ── Resync des transactions si le mouvement reste actif et des paramètres
-  // clés ont changé (montant, date de début, récurrence, type).
+  // Comparaison des VALEURS : un formulaire renvoie tous ses champs, modifiés ou non.
+  const identique = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const changes = CHAMPS_RECURRENT_HISTORIQUE.filter(c => !identique(existing[c], next[c]));
+
+  // À partir de quand les nouveaux paramètres valent. Jamais dans le futur : les
+  // occurrences d'ici là devraient garder les anciens paramètres, qui ne sont plus connus.
+  let effectiveFrom = options.effectiveFrom || todayStr;
+  if (effectiveFrom > todayStr) effectiveFrom = todayStr;
+  const toutRefaire = effectiveFrom <= next.start_date;
+
+  // Journal des modifications : une ligne par notion modifiée, avec sa date d'effet.
+  const auditEntries = [];
+  const dejaNotes = new Set();
+  changes.forEach(c => {
+    const champ = NOMS_CHAMPS_RECURRENT[c];
+    if (dejaNotes.has(champ)) return;
+    dejaNotes.add(champ);
+    const entree = { date: todayStr, champ, aPartirDu: toutRefaire ? next.start_date : effectiveFrom };
+    if (c === 'amount' || c === 'type' || c === 'recurrence' || c === 'start_date') {
+      entree.ancienneValeur = existing[c];
+      entree.nouvelleValeur = next[c];
+    }
+    auditEntries.push(entree);
+  });
+  next.historique_modifications = [...(existing.historique_modifications || []), ...auditEntries];
+  // Réglages modifiés : une confirmation de dépassement donnée pour les anciens ne vaut plus.
+  if (changes.length > 0) { next.allow_overdraw = false; next.overdraw_pending = null; }
+
+  store.regular_movements[idx] = next;
+  const updated = next;
+
   // Ne s'applique pas aux mouvements compte_cheque (pas de transactions).
-  const isStillActive   = updated.status === 'active';
-  const historyAffected = updates.amount !== undefined
-                       || updates.start_date !== undefined
-                       || updates.recurrence !== undefined
-                       || updates.type !== undefined
-                       || updates.fees_pct !== undefined
-                       || updates.fees_type !== undefined
-                       || updates.annual_fees_pct !== undefined
-                       || updates.annual_fees_type !== undefined;
-  if (isStillActive && historyAffected && updated.portfolio_id !== 'compte_cheque') {
-    _resyncMovementTransactions(id); // inclut saveData()
+  if (updated.status === 'active' && changes.length > 0 && updated.portfolio_id !== 'compte_cheque') {
+    _resyncMovementTransactions(id, toutRefaire ? null : effectiveFrom); // inclut saveData()
   } else {
     saveData();
   }
@@ -4448,6 +4663,45 @@ function updateRegularMovement(id, updates) {
   // Notifier les composants abonnés (calendrier, budget)
   try { gamificationService.dispatchEvent('recurringMovementsUpdated', {}); } catch (_) {}
   return updated;
+}
+
+/**
+ * Nombre d'échéances déjà enregistrées par un récurrent à partir d'une date : celles
+ * qu'une modification prenant effet à cette date remplacerait. Une échéance répartie sur
+ * plusieurs actifs compte pour une.
+ */
+function countRecurringOccurrencesFrom(id, fromDate) {
+  return new Set((getData().transactions || [])
+    .filter(tx => tx.from_recurring_id === id && (!fromDate || tx.date >= fromDate))
+    .map(tx => tx.date)).size;
+}
+
+/** Retraits récurrents en attente parce qu'ils dépassent le contenu de leur enveloppe. */
+function getRecurringOverdraws() {
+  const store = getData();
+  return (store.regular_movements || [])
+    .filter(rm => rm.status === 'active' && rm.overdraw_pending)
+    .map(rm => ({
+      id: rm.id,
+      note: rm.note || '',
+      portfolio: ((store.portfolios || []).find(p => p.id === rm.portfolio_id) || {}).name || '',
+      ...rm.overdraw_pending,
+    }));
+}
+
+/**
+ * L'utilisateur confirme qu'un retrait récurrent doit continuer à s'appliquer bien qu'il
+ * dépasse le contenu de l'enveloppe. La confirmation vaut pour la suite de la série ; elle
+ * est redemandée si les réglages de la série changent.
+ */
+function confirmRecurringOverdraw(id) {
+  const rm = (getData().regular_movements || []).find(r => r.id === id);
+  if (!rm) return;
+  rm.allow_overdraw = true;
+  rm.overdraw_pending = null;
+  syncRegularMovements();
+  saveData();
+  try { gamificationService.dispatchEvent('recurringMovementsUpdated', {}); } catch (_) {}
 }
 
 function stopRegularMovement(id) {
@@ -4591,51 +4845,33 @@ function _generateRecurringOccurrences(rm, untilDate) {
 }
 
 /**
- * Supprime toutes les transactions liées à un mouvement récurrent, inverse
- * leur impact sur le solde/totaux de l'enveloppe, puis rappelle syncRegularMovements
- * pour les recréer selon les nouveaux paramètres (start_date, amount, recurrence…).
+ * Refait les mouvements enregistrés par un récurrent après une modification de ses
+ * paramètres : supprime ceux datés de `fromDate` ou après, puis laisse
+ * syncRegularMovements les recréer avec les nouveaux paramètres.
  *
- * Utilisé par updateRegularMovement quand des paramètres clés changent.
- * Ne s'applique pas aux mouvements compte_cheque (pas de transactions).
+ * Les mouvements antérieurs à `fromDate` ne sont pas touchés. Le récurrent retient cette
+ * date (`applies_from`) : ses paramètres actuels ne valent qu'à partir d'elle, et aucune
+ * occurrence plus ancienne ne doit être recréée avec eux — par exemple si le rythme a
+ * changé et que les anciennes dates ne tombent plus sur la nouvelle grille.
  *
  * @param {string} id — identifiant du mouvement récurrent
+ * @param {string|null} [fromDate] — 'YYYY-MM-DD' ; null = tout l'historique du récurrent
  */
-function _resyncMovementTransactions(id) {
+function _resyncMovementTransactions(id, fromDate = null) {
   const store = getData();
   const rm = (store.regular_movements || []).find(r => r.id === id);
   if (!rm || rm.portfolio_id === 'compte_cheque') return;
 
-  // ── 1. Supprimer les transactions liées et inverser leur impact sur les soldes ─
-  const linkedTxs = (store.transactions || []).filter(tx => tx.from_recurring_id === id);
-  if (linkedTxs.length > 0) {
-    const portfolioMap = {};
-    (store.portfolios || []).forEach(p => { portfolioMap[p.id] = p; });
+  const concerne = (tx) => tx.from_recurring_id === id && (!fromDate || tx.date >= fromDate);
+  store.transactions = (store.transactions || []).filter(tx => !concerne(tx));
+  rm.applies_from = fromDate || null;
 
-    for (const tx of linkedTxs) {
-      const portfolio = portfolioMap[tx.portfolio_id];
-      if (!portfolio) continue;
-      const amount    = tx.amount    || 0;
-      const netAmount = tx.net_amount != null ? tx.net_amount : amount;
-      if (tx.type === 'deposit') {
-        portfolio.balance        = Math.round(((portfolio.balance        || 0) - netAmount) * 100) / 100;
-        portfolio.total_deposits = Math.round(((portfolio.total_deposits || 0) - amount)    * 100) / 100;
-        portfolio.total_fees     = Math.round(((portfolio.total_fees     || 0) - (tx.fees_amount || 0)) * 100) / 100;
-      } else {
-        portfolio.balance           = Math.round(((portfolio.balance           || 0) + netAmount) * 100) / 100;
-        portfolio.total_withdrawals = Math.round(((portfolio.total_withdrawals || 0) - amount)    * 100) / 100;
-      }
-    }
-    store.transactions = store.transactions.filter(tx => tx.from_recurring_id !== id);
-  }
-
-  // ── 2. Réappliquer toutes les occurrences passées avec les nouveaux paramètres ─
+  // Réappliquer les occurrences concernées avec les nouveaux paramètres.
   syncRegularMovements();
 
-  // ── 3. Garantir la sauvegarde même si syncRegularMovements n'a rien créé ─────
-  // (ex : nouvelle start_date dans le futur → aucune occurrence passée)
+  // Garantir la sauvegarde même si syncRegularMovements n'a rien créé
+  // (ex : nouvelle start_date dans le futur → aucune occurrence passée).
   saveData();
-
-  // ── 4. Log dev ────────────────────────────────────────────────────────────────
 }
 
 /**
@@ -4668,7 +4904,10 @@ function syncRegularMovements(catchUpReport = null) {
   for (const rm of rms) {
     try {
       // Dates d'occurrences passées (start_date → today inclus)
-      const allDates = _generateRecurringOccurrences(rm, todayStr);
+      // Les paramètres actuels ne valent qu'à partir de `applies_from` (voir
+      // _resyncMovementTransactions) : rien n'est créé avant.
+      const allDates = _generateRecurringOccurrences(rm, todayStr)
+        .filter(d => !rm.applies_from || d >= rm.applies_from);
       if (allDates.length === 0) continue;
 
       // Dates déjà enregistrées pour ce mouvement récurrent
@@ -4679,6 +4918,9 @@ function syncRegularMovements(catchUpReport = null) {
       );
 
       let toApply = allDates.filter(d => !existingDates.has(d));
+      // L'attente éventuelle est réévaluée à chaque passage : elle disparaît d'elle-même
+      // si un versement a entre-temps rendu le retrait possible.
+      if (rm.overdraw_pending) rm.overdraw_pending = null;
       if (toApply.length === 0) continue;
 
       // Plafond de rattrapage (contexte runRecurringCatchUp uniquement) : ne pas
@@ -4702,15 +4944,26 @@ function syncRegularMovements(catchUpReport = null) {
         if (!portfolio) continue;
 
         const amount    = parseFloat(rm.amount) || 0;
+        // Un retrait récurrent qui dépasse ce que contient l'enveloppe n'est pas appliqué
+        // d'office : la série est mise en attente à cette échéance, et l'utilisateur
+        // décide de la poursuivre ou de l'arrêter (voir confirmRecurringOverdraw).
+        if (rm.type === 'withdrawal' && !rm.allow_overdraw) {
+          const disponible = checkWithdrawal(rm.portfolio_id, amount).disponible;
+          if (checkWithdrawal(rm.portfolio_id, amount).depasse) {
+            rm.overdraw_pending = { date, amount, disponible: Math.round(disponible * 100) / 100 };
+            _hasUnsavedChanges = true;
+            break;
+          }
+        }
         // Frais de transaction du récurrent appliqués à chaque occurrence (% ou € fixe)
         const feesType  = rm.fees_type === 'euro' ? 'euro' : 'percent';
         const feeInput  = parseFloat(rm.fees_pct) || 0;
         const totalFee  = feesType === 'euro'
           ? Math.min(feeInput, amount)
           : Math.round(amount * feeInput / 100 * 100) / 100;
-        // Sens des frais du récurrent : 'deducted' (défaut) net = brut − frais ; 'added' net = brut + frais.
+        // Sens des frais du récurrent : 'deducted' (défaut) investi = saisi − frais ; 'added' investi = saisi.
         const feeDirection = rm.fee_direction === 'added' ? 'added' : 'deducted';
-        const netAmount = Math.round((feeDirection === 'added' ? amount + totalFee : amount - totalFee) * 100) / 100;
+        const netAmount = montantNet(amount, totalFee, feeDirection);
 
         // Frais annuels de gestion du récurrent, propagés à chaque occurrence
         // ('percent' = taux %/an accumulé sur le montant net ; 'euro' = montant fixe €/an).
@@ -4734,7 +4987,7 @@ function syncRegularMovements(catchUpReport = null) {
         for (const alloc of allocations) {
           const allocAmount = Math.round(amount * ((alloc.pct ?? 100) / 100) * 100) / 100;
           const allocFee    = amount > 0 ? Math.round(totalFee * (allocAmount / amount) * 100) / 100 : 0;
-          const allocNet    = Math.round((feeDirection === 'added' ? allocAmount + allocFee : allocAmount - allocFee) * 100) / 100;
+          const allocNet    = montantNet(allocAmount, allocFee, feeDirection);
           // Frais annuels : taux % identique par allocation ; montant € réparti au prorata.
           const allocAnnualEuro = (annualFeesType === 'euro' && amount > 0)
             ? Math.round(annualFeeInput * (allocAmount / amount) * 100) / 100
@@ -5158,6 +5411,7 @@ const dataService = {
   getSimulationMovementTemplates, createSimulationMovementTemplate, updateSimulationMovementTemplate, deleteSimulationMovementTemplate,
   getSimulationRegularMovements, createSimulationRegularMovement, updateSimulationRegularMovement,
   stopSimulationRegularMovement, deleteSimulationRegularMovement, syncSimulationRegularMovements,
+  getSimulationRecurringOverdraws, confirmSimulationRecurringOverdraw,
   // Nouvelles fonctions financières
   fv, calculateCompoundInterest, calculateTaxation,
   // Types d'actifs personnalisés
@@ -5178,7 +5432,8 @@ const dataService = {
   getBudgetEntries, getBudgetEntriesForMonth, createBudgetEntry, updateBudgetEntry, deleteBudgetEntry,
   // Regular movements (mouvements réguliers)
   getRegularMovements, getRegularMovementsByPortfolio,
-  createRegularMovement, updateRegularMovement, stopRegularMovement, deleteRegularMovement, applyNoteToRecurringOccurrences,
+  getHeldLines, checkWithdrawal, getRecurringOverdraws, confirmRecurringOverdraw,
+  createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, stopRegularMovement, deleteRegularMovement, applyNoteToRecurringOccurrences,
   getRegularMovementOccurrences, getRegularMovementOccurrencesForMonth, syncRegularMovements, runRecurringCatchUp,
   // Programmed movements
   getProgrammedMovements, createProgrammedMovement, updateProgrammedMovement, deleteProgrammedMovement,

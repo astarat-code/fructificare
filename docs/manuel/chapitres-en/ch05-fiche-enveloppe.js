@@ -69,7 +69,7 @@ children.push(p("The form takes up the top of the page. It is used for deposits 
 
 children.push(step([t('Choose the '), b('date'), t(". It cannot be earlier than the contract start date, nor later than today.")], 20));
 children.push(step([t('Enter the gross '), b('amount'), t('.')], 20));
-children.push(step([t('Enter the '), b('transaction fees'), t(" charged by your broker, as a percentage or in euros.")], 20));
+children.push(step([t('Enter the '), b('transaction fees'), t(" charged by your broker, as a percentage or in euros, and say whether they are "), b('deducted from the amount'), t(" typed or "), b('added to the amount'), t(" (a €75 order billed €76). Either way, only the amount actually invested is used to compute the return; the fees are counted in your deposits.")], 20));
 children.push(step([t('Add the '), b('annual fees'), t(" specific to this line, if it has any.")], 20));
 children.push(step([t("Select the "), b("asset type"), t('.')], 20));
 children.push(step([t('Optionally fill in the '), b('note'), t(", the "), b('quantity'), t(' and the '), b('unit price'), t('.')], 20));
@@ -129,7 +129,21 @@ children.push(bonASavoir([
 
 // ── 5.5 ────────────────────────────────────────────────────────────────────
 children.push(h2('5.5  The withdrawal question'));
-children.push(p("When you click Withdrawal, Fructificare asks a question before saving: where does the money go?"));
+children.push(p("The red Withdrawal button opens the sale window. Once it is validated, Fructificare asks one last question before saving: where does the money go?"));
+children.push(h3('The sale window'));
+children.push(p([
+  t("It takes over what you typed in the form and asks "), b('what you are selling'),
+  t(". The "), ui('Line sold'), t(" list shows what remains invested in the envelope, grouped by "), b('note and asset type'),
+  t(": two assets bought by the same recurring movement are two lines, which you can sell separately, in full or in part."),
+]));
+children.push(step("Choose the line, or “Other…” for an asset that is not listed: the window then shows the asset type sold, or several types with their split if you tick “Multiple asset types”.", 22));
+children.push(step("Enter the amount and the date.", 22));
+children.push(step([t("Enter the fees, as a percentage or in euros, and their direction. "), b('Fees deducted'), t(": the amount typed is what is sold, you receive that amount minus the fees. "), b('Fees added'), t(": the amount typed is what you receive, the fees are sold on top.")], 22));
+children.push(p("Below the fees, a summary shows what is taken from the assets, the fees and what you receive; for a line, it recalls the amount invested and what will be left after the sale, recomputed as you type."));
+children.push(p([
+  t("If the amount exceeds what remains invested in the line, or what the envelope holds according to your movements and your last calibration, you are asked to "),
+  b('confirm'), t(" — never prevented, since selling more than the amount invested is normal when the asset has gained value. The envelopes of a simulation behave the same way."),
+]));
 children.push(gap(100));
 children.push(...figure('5.4', 'The withdrawal confirmation window',
   "the window with its two options — “Keep as Cash” in blue and “Withdraw” in red — and their descriptions."));
@@ -226,6 +240,9 @@ children.push(p("The complete history, at the bottom of the page. Each column ca
 children.push(p('Two markers may accompany a row:'));
 children.push(bullet([b('Cash'), t(" — a withdrawal kept in the cash pocket.")]));
 children.push(bullet([b('🔄'), t(" — a movement generated automatically by a recurring series (chapter 8). Its note appears in italics.")]));
+children.push(p([
+  t("A movement spread over several assets takes "), b('a single row'), t(", which carries its totals and the number of assets. The chevron at the start of the row shows that it expands: one click lists, in smaller type, one row per asset, which you can edit or delete separately; a second click hides them."),
+]));
 
 children.push(p("The quantity and unit price, when filled in, are shown in small type below the amount."));
 children.push(p([

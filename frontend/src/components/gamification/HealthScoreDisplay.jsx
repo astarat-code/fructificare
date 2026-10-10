@@ -141,7 +141,7 @@ function ScoreGauge({ score, loading, lang = 'fr' }) {
   const progressLen = score !== null ? (score / 100) * ARC_LENGTH : 0;
 
   return (
-    <div className="relative flex items-center justify-center" style={{ width: 140, height: 140 }}>
+    <div className="flex flex-col items-center" style={{ width: 140 }}>
       <svg viewBox="0 0 120 120" width={140} height={140}>
         {/* Piste de fond (gris, arc complet 270°) */}
         <circle
@@ -153,7 +153,7 @@ function ScoreGauge({ score, loading, lang = 'fr' }) {
           strokeWidth={STROKE_WIDTH}
           strokeDasharray={`${ARC_LENGTH} ${CIRCUMFERENCE - ARC_LENGTH}`}
           strokeLinecap="round"
-          transform={`rotate(-135, ${CX}, ${CY})`}
+          transform={`rotate(135, ${CX}, ${CY})`}
         />
         {/* Arc de progression coloré */}
         {score !== null && !loading && (
@@ -166,7 +166,7 @@ function ScoreGauge({ score, loading, lang = 'fr' }) {
             strokeWidth={STROKE_WIDTH}
             strokeDasharray={`${progressLen} ${CIRCUMFERENCE}`}
             strokeLinecap="round"
-            transform={`rotate(-135, ${CX}, ${CY})`}
+            transform={`rotate(135, ${CX}, ${CY})`}
             style={{ transition: 'stroke-dasharray 0.6s ease, stroke 0.4s ease' }}
           />
         )}
@@ -205,9 +205,10 @@ function ScoreGauge({ score, loading, lang = 'fr' }) {
           </text>
         )}
       </svg>
-      {/* Libellé qualitatif sous la jauge */}
+      {/* Libellé qualitatif SOUS la jauge : posé dans l'ouverture de l'arc, un libellé
+          large (« Très bon ») en recouvrait les deux extrémités. */}
       <div
-        className="absolute bottom-0 left-0 right-0 text-center text-xs font-medium"
+        className="-mt-3 text-center text-xs font-medium whitespace-nowrap"
         style={{ color }}
       >
         {loading ? '' : scoreLabel(score, lang)}

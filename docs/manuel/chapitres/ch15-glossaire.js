@@ -15,7 +15,7 @@ children.push(h1('15. Glossaire'));
 
 children.push(p([
   t("Fructificare embarque "),
-  b('33 définitions'), t(", écrites pour être comprises sans connaissance préalable — accessibles depuis "), ui('Éditer > Glossaire'), t('.'),
+  b('33 définitions'), t(", écrites pour être comprises sans connaissance préalable — accessibles depuis "), ui('Aide > Glossaire'), t('.'),
 ]));
 
 children.push(...figure('15.1', 'La page Glossaire',

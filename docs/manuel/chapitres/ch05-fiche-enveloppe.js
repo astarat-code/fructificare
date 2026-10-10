@@ -69,7 +69,7 @@ children.push(p("Le formulaire occupe le haut de la page. Il sert aussi bien aux
 
 children.push(step([t('Choisissez la '), b('date'), t(". Elle ne peut pas être antérieure à l'ouverture du contrat, ni postérieure à aujourd'hui.")], 20));
 children.push(step([t('Saisissez le '), b('montant'), t(' brut.')], 20));
-children.push(step([t('Renseignez les '), b('frais de transaction'), t(" prélevés par votre courtier, en pourcentage ou en euros.")], 20));
+children.push(step([t('Renseignez les '), b('frais de transaction'), t(" prélevés par votre courtier, en pourcentage ou en euros, et indiquez s'ils sont "), b('déduits du montant'), t(" saisi ou "), b('ajoutés au montant'), t(" (un ordre de 75 € facturé 76 €). Dans les deux cas, seul le montant réellement investi sert au calcul du rendement ; les frais sont comptés dans vos versements.")], 20));
 children.push(step([t('Ajoutez les '), b('frais annuels'), t(" propres à cette ligne, si elle en supporte de spécifiques.")], 20));
 children.push(step([t("Sélectionnez le "), b("type d'actif"), t('.')], 20));
 children.push(step([t('Complétez éventuellement la '), b('note'), t(", la "), b('quantité'), t(' et le '), b('prix unitaire'), t('.')], 20));
@@ -129,7 +129,21 @@ children.push(bonASavoir([
 
 // ── 5.5 ────────────────────────────────────────────────────────────────────
 children.push(h2('5.5  La question du retrait'));
-children.push(p("Quand vous cliquez sur Vente, Fructificare pose une question avant d'enregistrer : où va l'argent ?"));
+children.push(p("Le bouton rouge Vente ouvre la fenêtre de vente. Une fois celle-ci validée, Fructificare pose une dernière question avant d'enregistrer : où va l'argent ?"));
+children.push(h3('La fenêtre de vente'));
+children.push(p([
+  t("Elle reprend ce que vous avez saisi dans le formulaire et vous demande "), b('ce que vous vendez'),
+  t(". La liste "), ui('Ligne vendue'), t(" présente ce qui reste investi dans l'enveloppe, regroupé par "), b("note et type d'actif"),
+  t(" : deux actifs achetés par un même mouvement récurrent forment deux lignes, que vous pouvez vendre séparément, en tout ou en partie."),
+]));
+children.push(step("Choisissez la ligne, ou « Autre… » pour un actif qui n'y figure pas : la fenêtre déroule alors le type d'actif vendu, ou plusieurs types avec leur répartition si vous cochez « Types d'actifs multiples ».", 22));
+children.push(step("Saisissez le montant et la date.", 22));
+children.push(step([t("Indiquez les frais, en pourcentage ou en euros, et leur sens. "), b('Frais déduits'), t(" : le montant saisi est ce qui est vendu, vous recevez ce montant moins les frais. "), b('Frais ajoutés'), t(" : le montant saisi est ce que vous recevez, les frais sont vendus en plus.")], 22));
+children.push(p("Sous les frais, un résumé indique ce qui est retiré des actifs, les frais et ce que vous recevez ; pour une ligne, il rappelle le montant investi et ce qu'il en restera après la vente, recalculé à chaque saisie."));
+children.push(p([
+  t("Si le montant dépasse ce qui reste investi sur la ligne, ou ce que contient l'enveloppe d'après vos mouvements et votre dernière calibration, une "),
+  b('confirmation'), t(" vous est demandée — sans jamais l'interdire, car vendre plus que le montant investi est normal quand l'actif a pris de la valeur. Les enveloppes d'une simulation se comportent de la même façon."),
+]));
 children.push(gap(100));
 children.push(...figure('5.4', 'La fenêtre de confirmation de retrait',
   "la fenêtre avec ses deux options — « Conserver en espèces » en bleu et « Ne pas conserver » en rouge — et leurs descriptions."));
@@ -226,6 +240,9 @@ children.push(p("L'historique complet, en bas de page. Chaque colonne est triabl
 children.push(p('Deux marqueurs peuvent accompagner une ligne :'));
 children.push(bullet([b('Espèces'), t(" — un retrait conservé dans la poche de liquidités.")]));
 children.push(bullet([b('🔄'), t(" — un mouvement généré automatiquement par une série récurrente (chapitre 8). Sa note apparaît en italique.")]));
+children.push(p([
+  t("Un mouvement réparti sur plusieurs actifs occupe "), b('une seule ligne'), t(", qui porte ses totaux et la mention du nombre d'actifs. Le chevron en début de ligne signale qu'elle se déplie : un clic affiche, en plus petit, une ligne par actif, que vous pouvez modifier ou supprimer séparément ; un second clic les masque."),
+]));
 
 children.push(p("La quantité et le prix unitaire, quand ils sont renseignés, s'affichent en petit sous le montant."));
 children.push(p([

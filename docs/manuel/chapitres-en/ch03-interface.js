@@ -45,7 +45,7 @@ children.push(bullet([ui('Trophies'), t(' — progress, health score, goals (cha
 children.push(h3('The menu at the top of the window'));
 children.push(p([
   t("The glossary and the settings are not in the sidebar: they open from the window menu, "),
-  ui('Edit > Glossary'), t(" (chapter 15) and "), ui('File > Settings'),
+  ui('Help > Glossary'), t(" (chapter 15) and "), ui('File > Settings'),
   t(" (chapter 14). This menu also groups saving, display and help (§ 16.6)."),
 ]));
 

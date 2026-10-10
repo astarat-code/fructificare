@@ -10,7 +10,9 @@ import { useLanguage } from "../context/LanguageContext";
 import Disclaimer from "../components/ui/Disclaimer";
 import CalibrationModal from "../components/CalibrationModal";
 import { DIETZ_NOTE } from "../components/ui/Disclaimer";
-import { signeFrais } from "../lib/transactionFees";
+import { signeFrais, montantNet } from "../lib/transactionFees";
+import { regrouperMouvements } from "../lib/movementGroups";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { versementsPea } from "../lib/peaCap";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -42,7 +44,7 @@ const darkenHex = (hex) => _shadeHex(hex, 0.7);
 const lightenHex = (hex) => _shadeHex(hex, 1.35);
 import { toast } from "sonner";
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Trash2, Edit2, RefreshCw, BarChart3, TableIcon, AlertTriangle, Wallet, TrendingUp, TrendingDown, Target, Settings, ArrowUpDown, Info } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Trash2, Edit2, RefreshCw, BarChart3, TableIcon, AlertTriangle, Wallet, TrendingUp, TrendingDown, Target, Settings, ArrowUpDown, Info, ChevronRight, ChevronDown } from "lucide-react";
 import RegularMovementsPanel from "../components/RegularMovementsPanel";
 import DocumentsSection from "../components/DocumentsSection";
 import { displayNote } from "../lib/displayNote";
@@ -122,6 +124,8 @@ function PnlAssetCard({ item, label, flat = false }) {
   );
 }
 
+const ASSET_TYPES_CONNUS = [...dataService.ASSET_TYPES, 'livret_réglementé'];
+
 export default function PortfolioDetail({ dataSource = null, scope = null, portfolioId: pidProp = null, backHref = "/" } = {}) {
   // Source de données : adaptateur (simulation) ou dataService (tableau de bord, défaut).
   // Permet de réutiliser CETTE page à l'identique pour une enveloppe de simulation.
@@ -189,6 +193,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
 
   // Pagination de l'historique
   const [txPage, setTxPage] = useState(0);
+  // Mouvements multi-actifs dépliés dans l'historique (identifiants de groupe).
+  const [groupesOuverts, setGroupesOuverts] = useState(() => new Set());
   const TX_PAGE_SIZE = 100;
 
   // Tri de l'historique (par défaut : date décroissante = plus récent en haut)
@@ -203,6 +209,14 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
 
   // Dialogue de confirmation pour les ventes (conserver en espèces ou non)
   const [withdrawalConfirmDialog, setWithdrawalConfirmDialog] = useState(false);
+  // Retrait supérieur à ce que contient l'enveloppe : confirmation demandée (jamais un blocage).
+  const [depassement, setDepassement] = useState(null); // null | { message, suite }
+  // Fenêtre de vente, ouverte par le bouton rouge : une ligne détenue (note + type d'actif),
+  // ou « Autre » avec le ou les types d'actifs vendus.
+  const AUTRE = "__autre__";
+  const VENTE_VIDE = { open: false, cle: "", amount: "", date: "", fees: "", feesType: "euro", feeDirection: "deducted",
+    note: "", assetType: "", multi: false, allocations: [] };
+  const [vente, setVente] = useState(VENTE_VIDE);
 
   const [realYieldData, setRealYieldData] = useState(null);
   const [pnlByAsset, setPnlByAsset] = useState([]);
@@ -443,16 +457,130 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
     } catch (e) { toast.error(e.message); }
   };
 
-  // Ouvre le dialogue de confirmation pour une vente
+  // ── Vente ───────────────────────────────────────────────────────────────────
+  // Lignes détenues : ce qui reste investi, par note et type d'actif. Calculées sur les
+  // mouvements affichés, donc identiques pour une enveloppe de simulation.
+  const lignesDetenues = dataService.getHeldLines(id, transactions);
+  const libelleType = (type) => (ASSET_TYPES_CONNUS.includes(type) ? t(`assetTypes.${type}`) : (type === 'non_defini' ? L('Sans type', 'No type') : type));
+  const nomLigne = (l) => (l.note ? `${displayNote(l.note, lang)} — ${libelleType(l.type_resolu)}` : libelleType(l.type_resolu));
+
+  // Montants d'une vente : ce qui est retiré des actifs, et ce qui est reçu.
+  //   frais déduits → retiré = montant saisi, reçu = montant − frais ;
+  //   frais ajoutés → reçu = montant saisi, retiré = montant + frais.
+  const montantsVente = (v) => {
+    const montant = parseFloat(String(v.amount).replace(',', '.')) || 0;
+    const saisie = parseFloat(String(v.fees).replace(',', '.')) || 0;
+    const frais = v.feesType === 'euro' ? saisie : Math.round(montant * saisie) / 100;
+    const ajoutes = v.feeDirection === 'added';
+    return { montant, saisie, frais, retire: ajoutes ? montant + frais : montant, recu: ajoutes ? montant : montant - frais };
+  };
+
+  // Le bouton rouge ouvre la fenêtre de vente, pré-remplie avec le formulaire.
   const handleWithdrawalClick = () => {
-    if (!txForm.amount || parseFloat(txForm.amount) <= 0) return toast.error(t('portfolio.amountInvalid'));
+    const premiere = lignesDetenues[0];
+    // Un type d'actif déjà choisi dans le formulaire désigne une vente « Autre ».
+    const versAutre = !premiere || !!txForm.asset_type || multiAssetMode;
+    setVente({
+      ...VENTE_VIDE,
+      open: true,
+      cle: versAutre ? AUTRE : premiere.cle,
+      amount: txForm.amount || (versAutre ? "" : String(premiere.investi)),
+      date: txForm.date || today,
+      fees: txForm.fees_pct || "",
+      feesType: txForm.fees_type === 'euro' ? 'euro' : 'percent',
+      feeDirection: txForm.fee_direction === 'added' ? 'added' : 'deducted',
+      note: txForm.note || "",
+      assetType: txForm.asset_type === 'autre' && txForm.custom_asset_type.trim() ? txForm.custom_asset_type.trim() : (txForm.asset_type || ""),
+      multi: multiAssetMode && multiAssetAllocations.length > 0,
+      allocations: multiAssetMode
+        ? multiAssetAllocations.map(a => ({ type: a.assetType === 'autre' && a.customName?.trim() ? a.customName.trim() : a.assetType, pct: String(a.pct) }))
+        : [],
+    });
+  };
+
+  // Contrôles de la vente, puis question « où va l'argent ? ».
+  const validerVente = (confirme = false) => {
+    const { montant, retire } = montantsVente(vente);
+    const ligne = vente.cle === AUTRE ? null : lignesDetenues.find(l => l.cle === vente.cle);
+    if (!montant || montant <= 0) return toast.error(t('portfolio.amountInvalid'));
+    if (!vente.date || vente.date > today) return toast.error(L('Date invalide.', 'Invalid date.'));
+    if (portfolio.contract_start_date && vente.date < portfolio.contract_start_date) return toast.error(t("portfolio.dateBeforeContractError"));
+    if (vente.cle !== AUTRE && !ligne) return toast.error(L('Choisissez la ligne à vendre.', 'Choose the line to sell.'));
+    if (vente.cle === AUTRE) {
+      if (vente.multi) {
+        const total = vente.allocations.reduce((s2, a) => s2 + (parseFloat(a.pct) || 0), 0);
+        if (vente.allocations.length < 2 || vente.allocations.some(a => !a.type)) return toast.error(L("Indiquez au moins deux types d'actifs.", 'Enter at least two asset types.'));
+        if (Math.abs(total - 100) > 0.01) return toast.error(t('portfolio.percentagesTotal100'));
+      } else if (!vente.assetType && lignesDetenues.some(l => l.type_resolu !== 'non_defini')) {
+        // Une enveloppe qui distingue ses actifs ne peut pas enregistrer une vente « de
+        // rien » : elle ne serait retirée d'aucune ligne et fausserait la répartition.
+        return toast.error(L("Indiquez le type d'actif vendu.", 'Choose the asset type sold.'));
+      }
+    }
+    if (!confirme) {
+      // Jamais un blocage : vendre plus que le montant investi est normal quand l'actif a
+      // pris de la valeur. On demande seulement de confirmer.
+      let message = null;
+      if (ligne && retire > ligne.investi + 0.005) {
+        message = L(
+          `Cette vente retire ${fmt(retire)} d'une ligne où ${fmt(ligne.investi)} restent investis. C'est normal si elle a pris de la valeur : la différence est votre plus-value. Confirmez-vous ce montant ?`,
+          `This sale takes ${fmt(retire)} from a line where ${fmt(ligne.investi)} remain invested. That is expected if it has gained value: the difference is your gain. Do you confirm this amount?`,
+        );
+      } else {
+        const contexte = dataSource ? { balance: portfolio.balance, calibrations: ds.getCalibrations ? ds.getCalibrations(id) : [], transactions } : null;
+        const controle = dataService.checkWithdrawal(id, retire, ligne || vente.multi ? null : (vente.assetType || null), contexte);
+        if (controle.depasse) {
+          message = controle.motif === 'actif'
+            ? L(
+              "Cette enveloppe ne détient pas, d'après vos mouvements, d'actif de ce type. La vente sera tout de même enregistrée si vous confirmez.",
+              'According to your movements, this envelope holds no asset of this type. The sale will still be recorded if you confirm.',
+            )
+            : L(
+              `Cette vente de ${fmt(retire)} dépasse ce que contient l'enveloppe (${fmt(controle.disponible)} d'après vos mouvements et votre dernière calibration). Confirmez seulement si ce montant est exact.`,
+              `This sale of ${fmt(retire)} exceeds what the envelope holds (${fmt(controle.disponible)} according to your movements and your last calibration). Confirm only if the amount is right.`,
+            );
+        }
+      }
+      if (message) { setDepassement({ message, suite: () => validerVente(true) }); return; }
+    }
     setWithdrawalConfirmDialog(true);
   };
-  
-  // Exécute la vente avec le choix de l'utilisateur
+
+  // Enregistre la vente avec le choix de l'utilisateur (espèces conservées ou non).
   const confirmWithdrawal = (keepInCash) => {
     setWithdrawalConfirmDialog(false);
-    addTransaction('withdrawal', keepInCash);
+    const { montant, saisie, frais } = montantsVente(vente);
+    const ligne = vente.cle === AUTRE ? null : lignesDetenues.find(l => l.cle === vente.cle);
+    const commun = {
+      date: vente.date,
+      type: 'withdrawal',
+      fees_type: vente.feesType,
+      fee_direction: vente.feeDirection,
+      keep_in_cash: keepInCash,
+    };
+    try {
+      if (ligne) {
+        ds.createTransaction(id, { ...commun, amount: montant, fees_pct: saisie, note: ligne.note, asset_type: ligne.asset_type, custom_asset_type: ligne.custom_asset_type });
+      } else if (vente.multi) {
+        // Une ligne par actif, regroupées dans l'historique. Des frais en euros sont
+        // répartis au prorata ; un pourcentage s'applique tel quel à chaque part.
+        const groupId = `mg_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        vente.allocations.forEach((a) => {
+          const part = Math.round(montant * (parseFloat(a.pct) || 0)) / 100;
+          if (part <= 0) return;
+          const fraisPart = vente.feesType === 'euro' ? Math.round(frais * (part / montant) * 100) / 100 : saisie;
+          ds.createTransaction(id, { ...commun, amount: part, fees_pct: fraisPart, note: vente.note, asset_type: a.type, custom_asset_type: null, movement_group_id: groupId });
+        });
+      } else {
+        ds.createTransaction(id, { ...commun, amount: montant, fees_pct: saisie, note: vente.note, asset_type: vente.assetType || null, custom_asset_type: null });
+      }
+      toast.success(keepInCash
+        ? L('Vente enregistrée, produit conservé en espèces.', 'Sale recorded, proceeds kept as cash.')
+        : L('Vente enregistrée.', 'Sale recorded.'));
+      setVente(VENTE_VIDE);
+      resetTxForm();
+      refresh();
+    } catch (e) { toast.error(e.message); }
   };
 
   const deleteTx = (target) => {
@@ -599,7 +727,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
     switch (key) {
       case 'date':        return tx.date || '';
       case 'type':        return tx.type || '';
-      case 'asset_type':  return (tx.asset_type === 'autre' && tx.custom_asset_type)
+      case 'asset_type':  if (tx.lignes) return `${tx.lignes.length}`;
+                          return (tx.asset_type === 'autre' && tx.custom_asset_type)
                                    ? tx.custom_asset_type
                                    : (tx.asset_type ? (t(`assetTypes.${tx.asset_type}`) || tx.asset_type) : '');
       case 'amount':      return tx.amount || 0;
@@ -610,7 +739,9 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
       default:            return '';
     }
   };
-  const sortedTransactions = [...transactions].sort((a, b) => {
+  // Un mouvement réparti sur plusieurs actifs est enregistré en une ligne par actif :
+  // l'historique le présente en UNE ligne, dépliable (voir lib/movementGroups).
+  const sortedTransactions = regrouperMouvements(transactions).sort((a, b) => {
     const va = sortValue(a, txSort.key);
     const vb = sortValue(b, txSort.key);
     let cmp;
@@ -699,13 +830,16 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
         {[
           {
             label: <GlossaryTerm id="versements">{t("portfolio.deposits")}</GlossaryTerm>,
-            value: fmt(portfolio.net_deposits),
+            value: fmt(portfolio.net_paid ?? portfolio.net_deposits),
             color: "text-emerald-600 dark:text-emerald-400",
             tip: L(
-              "Versements = capital net réellement en place dans l'enveloppe (total versé − retraits réels). Une vente dont le produit reste en espèces à l'intérieur n'est pas un retrait ici. L'écart avec la valeur réelle calibrée est votre plus/moins-value.",
-              "Deposits = net capital actually placed in the envelope (total deposited − real withdrawals). A sale whose proceeds stay as internal cash is not a withdrawal here. The gap with the calibrated real value is your gain/loss."
+              "Versements = argent que vous avez apporté à l'enveloppe, frais de versement compris, moins les retraits réels. Une vente dont le produit reste en espèces à l'intérieur n'est pas un retrait ici. Le rendement, lui, se calcule sur le montant investi, hors frais.",
+              "Deposits = money you brought into the envelope, deposit fees included, minus real withdrawals. A sale whose proceeds stay as internal cash is not a withdrawal here. The return is computed on the amount invested, fees excluded."
             ),
             subs: [
+              ...((portfolio.deposit_fees || 0) > 0 ? [
+                L(`Dont frais : ${fmt(portfolio.deposit_fees)}`, `Incl. fees: ${fmt(portfolio.deposit_fees)}`),
+              ] : []),
               L(`Total versé : ${fmt(portfolio.gross_deposits)}`, `Total bought: ${fmt(portfolio.gross_deposits)}`),
               L(`Total vendu : ${fmt(portfolio.total_sold)}`, `Total sold: ${fmt(portfolio.total_sold)}`),
             ],
@@ -871,8 +1005,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
                   {txForm.fee_direction === 'added'
-                    ? L("Les frais s'ajoutent au montant total sorti ou entré.", 'Fees are added on top of the total amount out or in.')
-                    : L('Les frais sont prélevés sur le montant reçu ou envoyé.', 'Fees are taken from the amount received or sent.')}
+                    ? L("Les frais s'ajoutent au montant saisi : ils comptent dans vos versements, pas dans le montant investi.", 'Fees come on top of the amount typed: they count in your deposits, not in the amount invested.')
+                    : L('Les frais sont prélevés sur le montant saisi : le montant investi est diminué d\'autant.', 'Fees are taken out of the amount typed: the amount invested is reduced accordingly.')}
                 </p>
               </div>
 
@@ -911,13 +1045,13 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
             const feeVal = parseFloat(txForm.fees_pct) || 0;
             const feeAmt = txForm.fees_type === 'euro' ? feeVal : amt * feeVal / 100;
             const lbl    = txForm.fees_type === 'euro' ? `${feeVal} €` : `${feeVal}%`;
-            const net    = txForm.fee_direction === 'added' ? amt + feeAmt : amt - feeAmt;
+            const net    = montantNet(amt, feeAmt, txForm.fee_direction);
             return (
-              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg text-sm">
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg text-sm" data-testid="tx-fees-preview">
                 <span className="text-amber-700 dark:text-amber-400">
                   {t("portfolio.feesPreview")}: {fmt(feeAmt)} ({lbl})
                   → {t("portfolio.netAmount")}: {fmt(net)}
-                  {txForm.fee_direction === 'added' && ` (${L('frais en plus', 'fees on top')})`}
+                  {' · '}{L('frais compris', 'fees included')}: {fmt(net + feeAmt)}
                 </span>
               </div>
             );
@@ -932,7 +1066,7 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                   const _amt = parseFloat(txForm.amount) || 0;
                   const _fee = parseFloat(txForm.fees_pct) || 0;
                   const _feeAmt = txForm.fees_type === 'euro' ? _fee : _amt * _fee / 100;
-                  const netAmount = txForm.fee_direction === 'added' ? _amt + _feeAmt : _amt - _feeAmt;
+                  const netAmount = montantNet(_amt, _feeAmt, txForm.fee_direction);
                   const cash = portfolio.cash_balance || 0;
                   if (cash >= netAmount) {
                     return `${t("portfolio.deposit")}: ${fmt(netAmount)} ${t("portfolio.fromCash")} (${fmt(cash)} disponible)`;
@@ -1313,7 +1447,7 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
       })()}
 
       <Card className="border border-border shadow-sm" style={{ borderColor: envColor }} data-testid="transactions-table">
-        <CardHeader><CardTitle className="font-heading text-lg">{t("portfolio.transactions")} ({transactions.length})</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="font-heading text-lg">{t("portfolio.transactions")} ({sortedTransactions.length})</CardTitle></CardHeader>
         <CardContent>
           {transactions.length === 0 ? <p className="text-muted-foreground text-center py-8">{t("tax.noMovements")}</p> : (
             <div className="overflow-x-auto">
@@ -1328,9 +1462,16 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                 <SortHead col="note" className="hidden sm:table-cell">{t("portfolio.note")}</SortHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow></TableHeader>
-              <TableBody>{sortedTransactions.slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE).map((tx) => (
-                <TableRow key={tx.id} data-testid={`tx-row-${tx.id}`} className={tx.from_recurring_id ? 'opacity-80' : ''}>
-                  <TableCell className="font-mono text-sm">{tx.date}</TableCell>
+              <TableBody>{(() => {
+                // Ligne d'un mouvement. `detail` : ligne par actif d'un mouvement déplié,
+                // en plus petit sous la ligne du mouvement.
+                const ligneMouvement = (tx, detail) => (
+                <TableRow
+                  key={tx.id}
+                  data-testid={`tx-row-${tx.id}`}
+                  className={`${tx.from_recurring_id ? 'opacity-80' : ''} ${detail ? 'bg-muted/30 [&_td]:py-1 [&_td]:text-xs' : ''}`}
+                >
+                  <TableCell className={detail ? 'pl-8 text-muted-foreground' : 'font-mono text-sm'}>{detail ? '↳' : tx.date}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <Badge className={tx.type === "deposit" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"}>
@@ -1396,13 +1537,78 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                     <Button variant="ghost" size="icon" onClick={() => setDeleteDialog(tx.id)} data-testid={`delete-tx-${tx.id}`}><Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" /></Button>
                   </TableCell>
                 </TableRow>
-              ))}</TableBody></Table>
+                );
+                // Ligne d'un mouvement réparti sur plusieurs actifs : totaux du mouvement,
+                // et un chevron qui annonce le détail par actif.
+                const ligneGroupe = (g) => {
+                  const ouvert = groupesOuverts.has(g.id);
+                  const basculer = () => setGroupesOuverts((prev) => {
+                    const suivant = new Set(prev);
+                    if (suivant.has(g.id)) suivant.delete(g.id); else suivant.add(g.id);
+                    return suivant;
+                  });
+                  const Chevron = ouvert ? ChevronDown : ChevronRight;
+                  return (
+                    <TableRow
+                      key={g.id}
+                      data-testid={`tx-group-${g.id}`}
+                      className={`cursor-pointer hover:bg-accent/40 ${g.from_recurring_id ? 'opacity-80' : ''}`}
+                      onClick={basculer}
+                      aria-expanded={ouvert}
+                      title={ouvert ? L('Masquer le détail par actif', 'Hide the breakdown by asset') : L('Afficher le détail par actif', 'Show the breakdown by asset')}
+                    >
+                      <TableCell className="font-mono text-sm">
+                        <span className="inline-flex items-center gap-1">
+                          <Chevron className="w-4 h-4 shrink-0 text-primary" />
+                          {g.date}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={g.type === "deposit" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"}>
+                          {g.type === "deposit" ? t("portfolio.deposit") : t("portfolio.withdrawal")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                          {g.lignes.length} {L('actifs', 'assets')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{fmt(g.amount)}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-amber-600">
+                        {g.fees_amount > 0 ? `${signeFrais(g)}${fmt(g.fees_amount)}` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-purple-600">
+                        {(g.annual_fees_pct || 0) > 0 ? `${g.annual_fees_pct}${g.annual_fees_type === 'euro' ? ' €/an' : '%'}` : "-"}
+                      </TableCell>
+                      <TableCell className={`text-right font-mono tabular-nums font-medium ${g.type === "deposit" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                        {g.type === "deposit" ? "+" : "-"}{fmt(g.net_amount)}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm max-w-[150px] truncate">
+                        {g.from_recurring_id && (
+                          <span className="text-[9px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded px-1 py-0.5 mr-1">
+                            🔄
+                          </span>
+                        )}
+                        <span className={g.from_recurring_id ? 'italic' : ''}>{displayNote(g.note, lang)}</span>
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                        {ouvert ? L('Masquer', 'Hide') : L('Détail', 'Details')}
+                      </TableCell>
+                    </TableRow>
+                  );
+                };
+                return sortedTransactions
+                  .slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE)
+                  .flatMap((row) => (row.lignes
+                    ? [ligneGroupe(row), ...(groupesOuverts.has(row.id) ? row.lignes.map((l) => ligneMouvement(l, true)) : [])]
+                    : [ligneMouvement(row, false)]));
+              })()}</TableBody></Table>
             </div>
           )}
-          {transactions.length > TX_PAGE_SIZE && (
+          {sortedTransactions.length > TX_PAGE_SIZE && (
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
               <span className="text-sm text-muted-foreground">
-                {txPage * TX_PAGE_SIZE + 1}–{Math.min((txPage + 1) * TX_PAGE_SIZE, transactions.length)} sur {transactions.length}
+                {txPage * TX_PAGE_SIZE + 1}–{Math.min((txPage + 1) * TX_PAGE_SIZE, sortedTransactions.length)} sur {sortedTransactions.length}
               </span>
               <div className="flex gap-2">
                 {txPage > 0 && (
@@ -1410,7 +1616,7 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                     {L('← Page précédente', '← Previous page')}
                   </Button>
                 )}
-                {(txPage + 1) * TX_PAGE_SIZE < transactions.length && (
+                {(txPage + 1) * TX_PAGE_SIZE < sortedTransactions.length && (
                   <Button variant="outline" size="sm" onClick={() => setTxPage(txPage + 1)}>
                     {L('Page suivante →', 'Next page →')}
                   </Button>
@@ -1422,6 +1628,170 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
       </Card>
 
       {/* Dialogs */}
+      <ConfirmDialog
+        open={!!depassement}
+        title={L('Vérifiez ce montant', 'Check this amount')}
+        description={depassement?.message}
+        confirmLabel={L('Confirmer', 'Confirm')}
+        onConfirm={() => { const suite = depassement?.suite; setDepassement(null); suite?.(); }}
+        onCancel={() => setDepassement(null)}
+      />
+      {/* Vente : une ligne détenue (note et type d'actif repris de la ligne), ou « Autre » */}
+      <Dialog open={vente.open && !withdrawalConfirmDialog && !depassement} onOpenChange={(o) => { if (!o) setVente(VENTE_VIDE); }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto" data-testid="sell-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-heading">{L('Enregistrer une vente', 'Record a sale')}</DialogTitle>
+            <DialogDescription>
+              {L(
+                "Choisissez ce que vous vendez : la vente est retirée de cette ligne, et d'elle seule. « Autre » sert à vendre un actif qui n'apparaît pas dans la liste.",
+                'Choose what you are selling: the sale is taken from that line only. "Other" is for an asset that is not in the list.',
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const ligne = vente.cle === AUTRE ? null : lignesDetenues.find(l => l.cle === vente.cle);
+            const { montant, frais, retire, recu } = montantsVente(vente);
+            const typesProposes = [...ds.ASSET_TYPES.filter(type => type !== 'autre'), ...customAssetTypes, 'autre'];
+            const bascule = (actif) => `flex-1 px-2 py-1.5 ${actif ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`;
+            return (
+              <div className="space-y-3">
+                <div>
+                  <Label>{L('Ligne vendue', 'Line sold')}</Label>
+                  <Select
+                    value={vente.cle}
+                    onValueChange={(v) => {
+                      const l = lignesDetenues.find(x => x.cle === v);
+                      setVente({ ...vente, cle: v, amount: l && !vente.amount ? String(l.investi) : vente.amount });
+                    }}
+                  >
+                    <SelectTrigger data-testid="sell-line-select"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {lignesDetenues.map(l => (
+                        <SelectItem key={l.cle} value={l.cle}>{nomLigne(l)} · {fmt(l.investi)}</SelectItem>
+                      ))}
+                      <SelectItem value={AUTRE}>{L('Autre…', 'Other…')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {vente.cle === AUTRE && (
+                  <div className="space-y-2 border rounded-lg p-3 bg-muted/20" data-testid="sell-other">
+                    {!vente.multi ? (
+                      <div>
+                        <Label>{L("Type d'actif vendu", 'Asset type sold')}</Label>
+                        <Select value={vente.assetType || "none"} onValueChange={(v) => setVente({ ...vente, assetType: v === "none" ? "" : v })}>
+                          <SelectTrigger data-testid="sell-asset-type"><SelectValue placeholder="--" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">--</SelectItem>
+                            {typesProposes.map(type => (
+                              <SelectItem key={type} value={type}>{libelleType(type)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label>{L("Types d'actifs vendus", 'Asset types sold')}</Label>
+                        {vente.allocations.map((a, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <Select value={a.type || "none"} onValueChange={(v) => setVente({ ...vente, allocations: vente.allocations.map((x, j) => (j === i ? { ...x, type: v === "none" ? "" : v } : x)) })}>
+                              <SelectTrigger className="flex-1"><SelectValue placeholder="--" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">--</SelectItem>
+                                {typesProposes.map(type => (
+                                  <SelectItem key={type} value={type}>{libelleType(type)}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input type="number" step="0.01" min="0" max="100" className="w-20" value={a.pct} onChange={e => setVente({ ...vente, allocations: vente.allocations.map((x, j) => (j === i ? { ...x, pct: e.target.value } : x)) })} />
+                            <span className="text-sm text-muted-foreground">%</span>
+                            <Button type="button" variant="ghost" size="icon" onClick={() => setVente({ ...vente, allocations: vente.allocations.filter((_, j) => j !== i) })}><Trash2 className="w-4 h-4 text-muted-foreground" /></Button>
+                          </div>
+                        ))}
+                        <Button type="button" variant="outline" size="sm" onClick={() => setVente({ ...vente, allocations: [...vente.allocations, { type: "", pct: "" }] })}>
+                          {L('Ajouter un actif', 'Add an asset')}
+                        </Button>
+                      </div>
+                    )}
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={vente.multi}
+                        onChange={e => setVente({ ...vente, multi: e.target.checked, allocations: e.target.checked && vente.allocations.length === 0 ? [{ type: vente.assetType, pct: "50" }, { type: "", pct: "50" }] : vente.allocations })}
+                        data-testid="sell-multi"
+                      />
+                      {L("Types d'actifs multiples", 'Multiple asset types')}
+                    </label>
+                    <div>
+                      <Label>{t("portfolio.note")}</Label>
+                      <Input value={vente.note} onChange={e => setVente({ ...vente, note: e.target.value })} maxLength={200} />
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>{L('Montant vendu (€)', 'Amount sold (€)')}</Label>
+                    <Input type="number" step="0.01" min="0" value={vente.amount} onChange={e => setVente({ ...vente, amount: e.target.value })} data-testid="sell-line-amount" />
+                  </div>
+                  <div>
+                    <Label>{t("portfolio.date")}</Label>
+                    <Input type="date" max={today} value={vente.date} onChange={e => setVente({ ...vente, date: e.target.value })} data-testid="sell-line-date" />
+                  </div>
+                </div>
+
+                <div>
+                  <Label>{vente.feesType === 'euro' ? L('Frais de transaction (€)', 'Transaction fees (€)') : L('Frais de transaction (%)', 'Transaction fees (%)')}</Label>
+                  <div className="flex items-center gap-1">
+                    <Input type="number" step="0.01" min="0" value={vente.fees} onChange={e => setVente({ ...vente, fees: e.target.value })} className="flex-1 min-w-0" data-testid="sell-line-fees" />
+                    <div className="flex rounded-md border border-input overflow-hidden shrink-0 h-9">
+                      <button type="button" onClick={() => setVente({ ...vente, feesType: 'percent' })} className={`px-2 text-sm ${vente.feesType !== 'euro' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}>%</button>
+                      <button type="button" onClick={() => setVente({ ...vente, feesType: 'euro' })} className={`px-2 text-sm ${vente.feesType === 'euro' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}>€</button>
+                    </div>
+                  </div>
+                  <div className="mt-2 flex rounded-md border border-input overflow-hidden text-xs" data-testid="sell-fee-direction">
+                    <button type="button" onClick={() => setVente({ ...vente, feeDirection: 'deducted' })} className={bascule(vente.feeDirection !== 'added')} data-testid="sell-fee-deducted">
+                      {L('Frais déduits du montant', 'Fees deducted from amount')}
+                    </button>
+                    <button type="button" onClick={() => setVente({ ...vente, feeDirection: 'added' })} className={`${bascule(vente.feeDirection === 'added')} border-l border-input`} data-testid="sell-fee-added">
+                      {L('Frais ajoutés au montant', 'Fees added to amount')}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    {vente.feeDirection === 'added'
+                      ? L("Le montant saisi est ce que vous recevez ; les frais sont vendus en plus.", 'The amount typed is what you receive; the fees are sold on top.')
+                      : L("Le montant saisi est ce qui est vendu ; vous recevez ce montant moins les frais.", 'The amount typed is what is sold; you receive that amount minus the fees.')}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg text-sm space-y-0.5" data-testid="sell-summary">
+                  <p className="text-amber-700 dark:text-amber-400">
+                    {L('Retiré des actifs', 'Taken from the assets')} : <b>{fmt(retire)}</b>
+                    {' · '}{L('frais', 'fees')} : {fmt(frais)}
+                    {' · '}{L('reçu', 'received')} : <b>{fmt(recu)}</b>
+                  </p>
+                  {ligne && (
+                    <p className="text-xs text-muted-foreground" data-testid="sell-remaining">
+                      {L(`Investi sur cette ligne : ${fmt(ligne.investi)} · restant après la vente : ${fmt(ligne.investi - retire)}.`,
+                         `Invested in this line: ${fmt(ligne.investi)} · left after the sale: ${fmt(ligne.investi - retire)}.`)}{' '}
+                      <button type="button" className="text-primary underline underline-offset-2" onClick={() => setVente({ ...vente, amount: String(vente.feeDirection === 'added' ? Math.max(0, Math.round((ligne.investi - (vente.feesType === 'euro' ? frais : ligne.investi - ligne.investi / (1 + (parseFloat(vente.fees) || 0) / 100))) * 100) / 100) : ligne.investi) })}>
+                        {L('Tout vendre', 'Sell all')}
+                      </button>
+                    </p>
+                  )}
+                  {montant > 0 && recu < 0 && <p className="text-xs text-destructive">{L('Les frais dépassent le montant vendu.', 'The fees exceed the amount sold.')}</p>}
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setVente(VENTE_VIDE)}>{t("common.cancel")}</Button>
+            <Button onClick={() => validerVente(false)} className="bg-rose-600 hover:bg-rose-700 text-white" data-testid="sell-line-confirm">
+              {L('Continuer', 'Continue')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Choix de financement d'un achat quand des espèces sont disponibles */}
       <Dialog open={!!cashChoice} onOpenChange={(o) => { if (!o) setCashChoice(null); }}>
         <DialogContent className="max-w-md">
@@ -1580,8 +1950,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
                 {editTxForm.fee_direction === 'added'
-                  ? L("Les frais s'ajoutent au montant total sorti ou entré.", 'Fees are added on top of the total amount out or in.')
-                  : L('Les frais sont prélevés sur le montant reçu ou envoyé.', 'Fees are taken from the amount received or sent.')}
+                  ? L("Les frais s'ajoutent au montant saisi : ils comptent dans vos versements, pas dans le montant investi.", 'Fees come on top of the amount typed: they count in your deposits, not in the amount invested.')
+                  : L('Les frais sont prélevés sur le montant saisi : le montant investi est diminué d\'autant.', 'Fees are taken out of the amount typed: the amount invested is reduced accordingly.')}
               </p>
             </div>
             <div><Label>{t("portfolio.assetType")}</Label>

@@ -156,13 +156,13 @@ children.push(tableau(
   ['Menu', 'Items'],
   [
     ['File', 'New (Ctrl+N) · Save (Ctrl+S) · Export a backup… · Import a backup… · Recent files… · Settings · Quit'],
-    ['Edit', 'Glossary'],
+    ['Edit', 'Cut · Copy · Paste · Select All'],
     ['View', 'Themes › Dark theme · Light theme — Languages › Français · English'],
-    ['Help', "User manual"],
+    ['Help', "User manual · Glossary · Check for updates…"],
   ],
   [1800, 7226],
 ));
-children.push(p("On macOS, shortcuts use ⌘ instead of Ctrl; “Quit” is in the Fructificare menu, and the Edit menu also offers Undo, Cut, Copy, Paste and Select All."));
+children.push(p("On macOS, shortcuts use ⌘ instead of Ctrl; “Quit” is in the Fructificare menu, and the Edit menu also offers Undo and Redo."));
 
 children.push(gap(100));
 children.push(bonASavoir([

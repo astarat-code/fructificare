@@ -21,6 +21,7 @@ import { Download, Upload, FileDown, AlertTriangle, CheckCircle2, RotateCcw, Har
 import EncryptionControls from "../components/EncryptionControls";
 import { getDataFolderInfo } from "../lib/dataFolder";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { isTauri as updaterAvailable, isAutoCheckEnabled, setAutoCheckEnabled, requestManualCheck } from "../lib/updater";
 
 export default function Settings({ onDataChange }) {
   const { t, lang } = useLanguage();
@@ -43,6 +44,7 @@ export default function Settings({ onDataChange }) {
   const [userIncome,     setUserIncome]     = useState('');
   const [userBirthDate,  setUserBirthDate]  = useState('');
   const [gamifEnabled,   setGamifEnabled]   = useState(true);
+  const [autoUpdateCheck, setAutoUpdateCheck] = useState(() => isAutoCheckEnabled());
   const [colorPastel,    setColorPastel]    = useState(true); // true = palette pastel, false = classique
   const [savedIndicator, setSavedIndicator] = useState(false);
 
@@ -460,6 +462,36 @@ export default function Settings({ onDataChange }) {
               className="shrink-0 mt-0.5"
             />
           </div>
+
+          {/* Mises à jour : seule connexion à Internet de l'application */}
+          {updaterAvailable() && (
+            <div className="flex items-start justify-between gap-4 p-4 rounded-lg border border-border bg-muted/30 mt-4" data-testid="update-check-row">
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium">
+                  {lang === 'fr' ? 'Rechercher les mises à jour automatiquement' : 'Check for updates automatically'}
+                </p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  {lang === 'fr'
+                    ? "Activé par défaut. Une fois par jour, au démarrage, l'application lit sur GitHub le numéro de la dernière version. Rien n'est envoyé : ni vos données, ni aucun identifiant. C'est la seule connexion à Internet de Fructificare ; désactivez-la pour un fonctionnement entièrement hors ligne."
+                    : 'Enabled by default. Once a day, at startup, the application reads the number of the latest version on GitHub. Nothing is sent: neither your data nor any identifier. This is the only Internet connection Fructificare makes; turn it off for a fully offline operation.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={requestManualCheck}
+                  className="text-xs font-medium text-primary underline underline-offset-2"
+                  data-testid="update-check-now"
+                >
+                  {lang === 'fr' ? 'Rechercher maintenant' : 'Check now'}
+                </button>
+              </div>
+              <Switch
+                checked={autoUpdateCheck}
+                onCheckedChange={(v) => { setAutoCheckEnabled(v); setAutoUpdateCheck(v); }}
+                className="shrink-0 mt-0.5"
+                data-testid="update-check-switch"
+              />
+            </div>
+          )}
 
           {/* Style de couleurs : Classique / Pastel */}
           <div className="flex items-start justify-between gap-4 p-4 rounded-lg border border-border bg-muted/30 mt-4" data-testid="color-style-row">

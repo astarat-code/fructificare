@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import TotalFeesCard from "../components/ui/TotalFeesCard";
 import RegularMovementsPanel from "../components/RegularMovementsPanel";
+import RecurringOverdrawDialog from "../components/RecurringOverdrawDialog";
 import { makeDataSource } from "../lib/portfolioDataSource";
 import { envTintBg, envTextColor, envMutedTextColor, envGainColor } from "../lib/utils";
 
@@ -48,6 +49,7 @@ export default function SimulationDetail() {
   // sur les enveloppes de la simulation (et non sur le tableau de bord réel).
   const simDataSource = useMemo(() => makeDataSource({ type: 'simulation', simId: id }), [id]);
   const [regularMovementsOpen, setRegularMovementsOpen] = useState(false);
+  const [overdrawTick, setOverdrawTick] = useState(0); // relecture des retraits récurrents en attente
 
   const [simulation, setSimulation] = useState(null);
   const [stats, setStats] = useState(null);
@@ -513,6 +515,7 @@ export default function SimulationDetail() {
         // uniquement). Debouncé 500 ms → reste fluide même en déplaçant le curseur rapidement.
         const applied = dataService.syncSimulationRegularMovements(simulation.id, `${targetDate}-28`);
         if (applied > 0) refresh(); // recharge la simulation + recalcule chart/tuiles/historique
+        setOverdrawTick((n) => n + 1); // un retrait récurrent a pu être mis en attente
       } catch (_) {}
     }, 500);
     return () => clearTimeout(_saveProjTimer.current);
@@ -1665,6 +1668,14 @@ export default function SimulationDetail() {
         portfolios={simulation.portfolios}
         dataSource={simDataSource}
         onSaved={refresh}
+      />
+
+      {/* Retrait récurrent dépassant le contenu d'une enveloppe simulée */}
+      <RecurringOverdrawDialog
+        simulationId={simulation.id}
+        untilDate={`${targetDate}-28`}
+        refreshKey={overdrawTick}
+        onChange={refresh}
       />
 
       <Disclaimer simulation />

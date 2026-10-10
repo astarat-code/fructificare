@@ -127,7 +127,7 @@ export default function Dashboard() {
   const [templateDialogOpen,    setTemplateDialogOpen]    = useState(false);
   const [regularMovementsOpen,  setRegularMovementsOpen]  = useState(false);
   const [form, setForm] = useState({ name: "", color: "", type: "PEA", annual_fees_pct: 0, annual_fees_type: "percent", annual_return_rate: "", contract_start_date: "", include_in_tax_report: true, regulated_subtype: "livret_a" });
-  const [templateForm, setTemplateForm] = useState({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", annual_fees_pct: 0, asset_type: "" });
+  const [templateForm, setTemplateForm] = useState({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", fee_direction: "deducted", annual_fees_pct: 0, asset_type: "" });
   const [editingTemplate, setEditingTemplate] = useState(null);
   const [customAssetTypes, setCustomAssetTypes] = useState([]);
   const [tplMultiAssetMode, setTplMultiAssetMode] = useState(false);
@@ -267,9 +267,10 @@ export default function Dashboard() {
     const lastCal = dataService.getCalibrations(p.id).slice(-1)[0];
     return s + (lastCal ? lastCal.total_value : (p.balance || 0));
   }, 0);
-  const totalDeposits     = perfPortfolios.reduce((s, p) => s + (p.total_deposits || 0), 0);
+  // Affichage seulement : versements frais compris (voir lib/transactionFees).
+  const totalDeposits     = perfPortfolios.reduce((s, p) => s + (p.total_paid ?? p.total_deposits ?? 0), 0);
   const totalWithdrawals  = perfPortfolios.reduce((s, p) => s + (p.total_withdrawals || 0), 0);
-  const regulatedDeposits = regulatedPortfolios.reduce((s, p) => s + (p.total_deposits || 0), 0);
+  const regulatedDeposits = regulatedPortfolios.reduce((s, p) => s + (p.total_paid ?? p.total_deposits ?? 0), 0);
   const totalFees = portfolios.reduce((s, p) => s + (p.total_fees || 0), 0);
   // Répartition des frais par enveloppe (frais > 0), triée par total décroissant.
   const feeBreakdown = [...portfolios]
@@ -345,7 +346,7 @@ export default function Dashboard() {
         dataService.createMovementTemplate(data);
         toast.success(t("common.success"));
       }
-      setTemplateForm({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", annual_fees_pct: 0, asset_type: "" });
+      setTemplateForm({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", fee_direction: "deducted", annual_fees_pct: 0, asset_type: "" });
       setTplMultiAssetMode(false);
       setTplMultiAssetAllocations([]);
       setTemplateTab("list");
@@ -360,6 +361,7 @@ export default function Dashboard() {
       portfolio_id: tpl.portfolio_id,
       fees_pct: tpl.fees_pct,
       fees_type: tpl.fees_type === 'euro' ? 'euro' : 'percent',
+      fee_direction: tpl.fee_direction === 'added' ? 'added' : 'deducted',
       annual_fees_pct: tpl.annual_fees_pct,
       asset_type: tpl.asset_type || "",
     });
@@ -381,7 +383,7 @@ export default function Dashboard() {
 
   const cancelEditTemplate = () => {
     setEditingTemplate(null);
-    setTemplateForm({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", annual_fees_pct: 0, asset_type: "" });
+    setTemplateForm({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", fee_direction: "deducted", annual_fees_pct: 0, asset_type: "" });
     setTplMultiAssetMode(false);
     setTplMultiAssetAllocations([]);
     setTemplateTab("list");
@@ -390,7 +392,7 @@ export default function Dashboard() {
   const openTemplateDialog = () => {
     setTemplateTab(templates.length > 0 ? "list" : "create");
     setEditingTemplate(null);
-    setTemplateForm({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", annual_fees_pct: 0, asset_type: "" });
+    setTemplateForm({ name: "", portfolio_id: "", fees_pct: 0, fees_type: "percent", fee_direction: "deducted", annual_fees_pct: 0, asset_type: "" });
     setTplMultiAssetMode(false);
     setTplMultiAssetAllocations([]);
     setTemplateDialogOpen(true);
@@ -805,6 +807,22 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div><Label>{t("dashboard.templateAnnualFees")}</Label><Input type="number" step="0.01" min="0" value={templateForm.annual_fees_pct} onChange={e => setTemplateForm({...templateForm, annual_fees_pct: e.target.value})} data-testid="template-annual-fees-input" /></div>
+                  </div>
+                  {/* Sens des frais (déduits / ajoutés), repris par les mouvements créés depuis ce modèle */}
+                  <div>
+                    <div className="flex rounded-md border border-input overflow-hidden text-xs" data-testid="template-fee-direction">
+                      <button type="button" onClick={() => setTemplateForm({...templateForm, fee_direction: 'deducted'})} className={`flex-1 px-2 py-1.5 ${templateForm.fee_direction !== 'added' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}>
+                        {L('Frais déduits du montant', 'Fees deducted from amount')}
+                      </button>
+                      <button type="button" onClick={() => setTemplateForm({...templateForm, fee_direction: 'added'})} className={`flex-1 px-2 py-1.5 border-l border-input ${templateForm.fee_direction === 'added' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-accent'}`}>
+                        {L('Frais ajoutés au montant', 'Fees added to amount')}
+                      </button>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      {templateForm.fee_direction === 'added'
+                        ? L("Les frais s'ajoutent au montant saisi : ils comptent dans vos versements, pas dans le montant investi.", 'Fees come on top of the amount typed: they count in your deposits, not in the amount invested.')
+                        : L('Les frais sont prélevés sur le montant saisi : le montant investi est diminué d\'autant.', 'Fees are taken out of the amount typed: the amount invested is reduced accordingly.')}
+                    </p>
                   </div>
                   <div className="flex gap-2 pt-2">
                     {editingTemplate && <Button variant="secondary" onClick={cancelEditTemplate}>{t("common.cancel")}</Button>}
@@ -1378,7 +1396,7 @@ export default function Dashboard() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-mono tabular-nums" style={{ color: envMutedTextColor(p.color) }}>{fmt(p.net_deposits)}</TableCell>
+                    <TableCell className="text-right font-mono tabular-nums" style={{ color: envMutedTextColor(p.color) }}>{fmt(p.net_paid ?? p.net_deposits)}</TableCell>
                     <TableCell className="hidden sm:table-cell text-right">
                       <Button variant="ghost" size="sm" data-testid={`view-portfolio-${p.id}`}><ChevronRight className="w-4 h-4" /></Button>
                     </TableCell>

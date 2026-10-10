@@ -16,6 +16,9 @@ import { getRecentFiles, addRecentFile, removeRecentFile, clearRecentFiles } fro
 import { openManual } from "../lib/openManual";
 import ConfirmDialog from "./ConfirmDialog";
 import DataFolderDialog from "./DataFolderDialog";
+import UpdateDialog from "./UpdateDialog";
+import RecurringOverdrawDialog from "./RecurringOverdrawDialog";
+import { requestManualCheck } from "../lib/updater";
 import { getDataFolderInfo } from "../lib/dataFolder";
 import { toast } from "sonner";
 import gamificationService from "../services/gamificationService";
@@ -211,6 +214,16 @@ export default function Layout({ children }) {
     }
   }, [lang, loadFileFromPath]);
 
+  // Version de l'application, affichée en pied du menu de gauche (bureau uniquement).
+  const [appVersion, setAppVersion] = useState(null);
+  useEffect(() => {
+    if (!isTauri) return;
+    import("@tauri-apps/api/app")
+      .then(({ getVersion }) => getVersion())
+      .then(setAppVersion)
+      .catch(() => { /* version indisponible : rien n'est affiché */ });
+  }, [isTauri]);
+
   // Premier lancement : proposer le dossier des données et le chiffrement. Un dossier
   // choisi mais introuvable (disque débranché) bloque l'accès aux données jusqu'à ce que
   // l'utilisateur le retrouve ou en désigne un autre.
@@ -294,6 +307,7 @@ export default function Layout({ children }) {
             case "data-folder": setDataFolder({ open: true, mode: "manage" }); break;
             case "settings": navigate("/settings"); break;
             case "glossary": navigate("/glossaire"); break;
+            case "check-update": requestManualCheck(); break;
             case "theme-dark":
               setTheme("dark");  try { dataService.saveAppPreferences({ theme: "dark" }); } catch (_) {} break;
             case "theme-light":
@@ -519,12 +533,17 @@ export default function Layout({ children }) {
             )}
           </div>
 
-          <Separator />
-
-          {/* ── Signature + langue + thème ──────────────────── */}
-          <p className="text-xs text-muted-foreground/60 text-center font-vintage tracking-wide">
-            Fructificare
-          </p>
+          {/* ── Signature + version + langue + thème ────────── */}
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground/60 font-vintage tracking-wide">
+              Fructificare
+            </p>
+            {appVersion && (
+              <p className="text-[10px] text-muted-foreground/50 tabular-nums" data-testid="app-version">
+                v{appVersion}
+              </p>
+            )}
+          </div>
           {/* Langue + thème — masqués en bureau (menu natif Affichage › Thèmes / Langues) */}
           {!isTauri && (
             <div className="flex items-center justify-between">
@@ -654,6 +673,8 @@ export default function Layout({ children }) {
       />
 
       {/* « Nouveau » (menu natif) : vider l'espace de travail — voir le gestionnaire menu-action. */}
+      <UpdateDialog />
+      <RecurringOverdrawDialog />
       <DataFolderDialog
         open={dataFolder.open}
         mode={dataFolder.mode}

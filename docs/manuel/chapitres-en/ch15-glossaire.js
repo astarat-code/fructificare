@@ -15,7 +15,7 @@ children.push(h1('15. Glossary'));
 
 children.push(p([
   t("Fructificare includes "),
-  b('33 definitions'), t(", written to be understood without prior knowledge — available from "), ui('Edit > Glossary'), t('.'),
+  b('33 definitions'), t(", written to be understood without prior knowledge — available from "), ui('Help > Glossary'), t('.'),
 ]));
 
 children.push(...figure('15.1', 'The Glossary page',

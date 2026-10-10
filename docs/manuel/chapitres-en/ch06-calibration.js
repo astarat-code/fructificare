@@ -64,6 +64,7 @@ children.push(p([
 
 // ── 6.3 ────────────────────────────────────────────────────────────────────
 children.push(h2('6.3  Detail by position'));
+children.push(p("Three rules to know. Only one calibration is kept per envelope and per day: entering a second one on the same date corrects the first. A position entered from a multi-asset template is split according to that template's allocation. Finally, if the breakdown does not add up to the total value, Fructificare tells you and computes the asset allocation pro rata to the breakdown."));
 children.push(p([
   t("Below the total value field, a "), ui('Detail by position'),
   t(" link opens the breakdown. Instead of a single figure, you split the value between your holdings."),

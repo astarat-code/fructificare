@@ -99,12 +99,24 @@ children.push(...figure('8.3', "L'historique des séries",
 children.push(h3('Modifier une série'));
 children.push(p([
   t("Le "), b('crayon'),
-  t(" ramène au formulaire, pré-rempli. Changer le montant, la date de début, la récurrence, le type ou les frais s'applique à "), b('toute la série, passé compris'),
-  t(" : les mouvements déjà générés sont supprimés puis recréés avec les nouveaux paramètres, et le solde de l'enveloppe est recalculé. Pour changer de montant à partir d'une date sans toucher au passé, arrêtez la série et créez-en une nouvelle."),
+  t(" ramène au formulaire, pré-rempli. En bas du formulaire, le champ "), ui('Appliquer les modifications à partir du'),
+  t(" fixe la date d'effet de vos changements : "), b("aujourd'hui"), t(" par défaut, ou une date passée de votre choix."),
 ]));
+children.push(bullet([b('Avant cette date'), t(" — les mouvements déjà enregistrés ne changent pas.")]));
+children.push(bullet([b('À partir de cette date'), t(" — si vous modifiez le montant, le type, les frais, la répartition ou la récurrence, les mouvements déjà enregistrés sont refaits avec les nouveaux réglages, et les prochaines échéances les suivent. Le formulaire annonce combien d'échéances sont concernées.")]));
+children.push(bullet([ui('Depuis le début'), t(" — ramène la date d'effet au début de la série : tout son historique est refait.")]));
+children.push(p("Changer seulement la note ou la date de fin ne refait aucun mouvement. La date d'effet ne peut pas être dans le futur : pour un changement à venir, modifiez la série le moment venu."));
 children.push(p([
-  t("Tout changement de montant est consigné dans un "), b('journal des modifications'),
-  t(" affiché sous le bloc, avec sa date et les deux valeurs. Vous gardez ainsi la trace d'une modification de versement."),
+  t("Chaque changement est consigné dans un "), b('journal des modifications'),
+  t(" affiché sous le bloc, avec sa date, sa date d'effet et, pour le montant, les deux valeurs."),
+]));
+
+children.push(h3('Un retrait récurrent qui dépasse le contenu de l\'enveloppe'));
+children.push(p([
+  t("Quand une échéance de retrait dépasse ce que contient l'enveloppe, d'après vos mouvements et votre dernière calibration, Fructificare "), b("ne l'enregistre pas"),
+  t(" : la série est mise en attente à cette échéance et une fenêtre vous demande de choisir. "), ui("Continuer à l'appliquer"),
+  t(" enregistre l'échéance et les suivantes, sans redemander tant que vous ne modifiez pas la série ; "), ui('Arrêter ce mouvement'),
+  t(" clôt la série en conservant les retraits déjà enregistrés ; "), ui('Plus tard'), t(" laisse la série en attente, et la question revient au prochain démarrage. Un versement qui rend le retrait possible lève l'attente de lui-même. La même règle vaut pour les récurrents d'une simulation, où le rendement projeté n'est pas compté dans le contenu de l'enveloppe."),
 ]));
 
 children.push(h3('Arrêter une série'));

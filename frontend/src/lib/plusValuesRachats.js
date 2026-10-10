@@ -38,7 +38,7 @@ function especesAu(transactions, date) {
   return transactions
     .filter(t => t.date <= date)
     .reduce((s, t) => {
-      if (t.type === 'withdrawal' && t.keep_in_cash) return s + ((t.amount || 0) - (t.fees_amount || 0));
+      if (t.type === 'withdrawal' && t.keep_in_cash) return s + (t.net_amount ?? t.amount ?? 0);
       if (t.type === 'deposit' && t.from_cash_amount) return s - (t.from_cash_amount || 0);
       return s;
     }, 0);

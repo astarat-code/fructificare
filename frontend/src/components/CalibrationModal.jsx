@@ -171,7 +171,17 @@ export default function CalibrationModal({ open, onClose, onSaved, focusedEnvelo
     if (isNaN(totalValue) || totalValue < 0) { toast.error(L("Valeur invalide.", "Invalid value.")); return; }
     const effectiveDate = calibrationDateOverrides[portfolioId] || calibrationDate;
     if (!assertNotFuture(effectiveDate)) return;
-    dataService.addCalibration({ portfolio_id: portfolioId, date: effectiveDate, total_value: totalValue, asset_breakdown: buildAssetBreakdown(portfolioId) });
+    // Détail par position dont la somme s'écarte du total : la répartition par actif sera
+    // calculée au prorata du détail, on le signale sans bloquer.
+    const detail = buildAssetBreakdown(portfolioId);
+    const sommeDetail = detail ? detail.reduce((s2, i) => s2 + i.value, 0) : 0;
+    if (detail && Math.abs(sommeDetail - totalValue) > 1) {
+      toast.warning(L(
+        `Le détail par position (${sommeDetail.toFixed(2)} €) ne correspond pas à la valeur totale (${totalValue.toFixed(2)} €). La répartition par actif sera calculée au prorata du détail.`,
+        `The breakdown by position (€${sommeDetail.toFixed(2)}) does not match the total value (€${totalValue.toFixed(2)}). The asset allocation will be computed pro rata to the breakdown.`,
+      ));
+    }
+    dataService.addCalibration({ portfolio_id: portfolioId, date: effectiveDate, total_value: totalValue, asset_breakdown: detail });
     notifySaved();
     // Le message « Calibration enregistrée » reste visible jusqu'à la fermeture de la
     // modale (reset à l'ouverture) ou une nouvelle saisie de cette enveloppe — pas de

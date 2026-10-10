@@ -64,6 +64,7 @@ children.push(p([
 
 // ── 6.3 ────────────────────────────────────────────────────────────────────
 children.push(h2('6.3  Détailler par position'));
+children.push(p("Trois règles à connaître. Une seule calibration est conservée par enveloppe et par jour : en saisir une seconde à la même date corrige la première. Une position saisie d'après un mouvement type multi-actifs est ventilée selon la répartition de ce modèle. Enfin, si la somme du détail ne correspond pas à la valeur totale, Fructificare vous le signale et calcule la répartition par actif au prorata du détail."));
 children.push(p([
   t("Sous le champ de valeur totale, un lien "), ui('Détailler par position'),
   t(" ouvre la ventilation. Au lieu d'un seul chiffre, vous répartissez la valeur entre vos lignes."),

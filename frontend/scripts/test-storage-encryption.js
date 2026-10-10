@@ -304,12 +304,11 @@ async function main() {
   check("indicateur persistant nettoyé", localStorage.getItem('fructificare_encryption_enabled') === null);
   globalThis.window.showSaveFilePicker = savedPicker;
 
-  // -- Adoption de la phrase d'un fichier IMPORTE --------------------------------
+  // -- Import d'une sauvegarde chiffree --------------------------------------------
   //
-  // Le scenario d'attaque : « voici mon portefeuille d'exemple, la phrase est demo1234 ».
-  // Si l'import adoptait cette phrase en silence, toutes les sauvegardes suivantes de la
-  // victime seraient chiffrees avec une cle et un sel connus de l'expediteur. Il lui
-  // suffirait ensuite de mettre la main sur un seul fichier.
+  // L'import active le chiffrement avec la phrase du fichier, et l'interface en est
+  // avertie : elle propose alors de changer de phrase, au cas ou le fichier viendrait
+  // d'un tiers (« voici mon portefeuille d'exemple, la phrase est demo1234 »).
   // Remise à zéro déterministe : on installe une session chiffrée connue (enable ne
   // dépend pas d'une phrase antérieure), puis on la désactive avec CETTE phrase. Cela
   // remet _crypto à {enabled:false, key:null} quel que soit l'état précédent — y compris
@@ -329,51 +328,67 @@ async function main() {
     cleTiers, selTiers,
   );
 
-  // 1. L'utilisateur saisit la phrase, puis REFUSE de l'adopter.
+  // 1. Session en clair, import d'un fichier chiffre : le chiffrement s'active et
+  //    l'interface est avertie.
   await remettreAZero();
+  let avertissements = 0;
   storageService.setPassphrasePrompt(async () => PHRASE_TIERS, () => {});
-  storageService.setKeyAdoptionConfirm(async () => false);
-  const luSansAdoption = await storageService.deserializeImported(FICHIER_TIERS);
-  check('le fichier importe est bien dechiffre malgre le refus',
-    luSansAdoption.secret === 'donnees du tiers', luSansAdoption);
-  check("refus : le chiffrement local N'EST PAS active",
-    storageService.isEncryptionEnabled() === false);
-  check("refus : aucun indicateur persistant n'est ecrit",
-    localStorage.getItem('fructificare_encryption_enabled') === null);
-  await storageService.save(getJson());
-  check('refus : les sauvegardes locales ne sont pas chiffrees avec la cle du tiers',
-    JSON.parse(disk.content).secret === 'patrimoine 123456');
-
-  // 2. Meme fichier, mais l'utilisateur ACCEPTE (cas « je restaure ma sauvegarde »).
-  await remettreAZero();
-  storageService.setKeyAdoptionConfirm(async () => true);
-  const luAvecAdoption = await storageService.deserializeImported(FICHIER_TIERS);
-  check('acceptation : le fichier est dechiffre', luAvecAdoption.secret === 'donnees du tiers');
-  check('acceptation : le chiffrement local devient actif',
+  storageService.setKeyAdoptionNotice(() => { avertissements += 1; });
+  const luChiffre = await storageService.deserializeImported(FICHIER_TIERS);
+  check('import chiffre : le fichier est dechiffre', luChiffre.secret === 'donnees du tiers', luChiffre);
+  check('import chiffre : le chiffrement local devient actif',
     storageService.isEncryptionEnabled() === true);
+  check("import chiffre : l'interface est avertie une fois", avertissements === 1, avertissements);
   await storageService.save(getJson());
-  check('acceptation : les sauvegardes locales sont desormais chiffrees',
+  check('import chiffre : les sauvegardes locales sont desormais chiffrees',
     cryptoService.isEncryptedEnvelope(JSON.parse(disk.content)));
 
-  // 3. Aucune fonction de confirmation enregistree : on n'adopte PAS. Se tromper dans
-  //    ce sens laisse des donnees en clair ; dans l'autre, cela remet la cle a un tiers.
-  await remettreAZero();
-  storageService.setKeyAdoptionConfirm(null);
-  await storageService.deserializeImported(FICHIER_TIERS);
-  check("sans fonction de confirmation, la cle n'est pas adoptee",
-    storageService.isEncryptionEnabled() === false);
+  // 2. Changer de phrase apres l'avertissement tire un nouveau sel : l'auteur du
+  //    fichier ne connait plus ni la phrase ni le sel.
+  const PHRASE_A_SOI = 'ma phrase choisie apres import 42';
+  const change = await storageService.changePassphrase(PHRASE_TIERS, PHRASE_A_SOI, getJson);
+  check('changement de phrase apres import accepte', change.ok === true, change);
+  const apres = JSON.parse(disk.content);
+  check('changement de phrase : nouveau sel', apres.salt !== JSON.parse(FICHIER_TIERS).salt);
+  let lisibleParLeTiers = true;
+  try { await cryptoService.decryptEnvelope(apres, cleTiers); } catch { lisibleParLeTiers = false; }
+  check("changement de phrase : la cle du tiers n'ouvre plus les sauvegardes", lisibleParLeTiers === false);
 
-  // 4. Une sauvegarde du dossier de l'application appartient a l'utilisateur : aucune
-  //    question, sinon il devrait confirmer a chaque demarrage.
+  // 3. Session deja chiffree, import d'un fichier chiffre par quelqu'un d'autre : la
+  //    phrase de l'utilisateur reste la sienne, aucun avertissement.
   await remettreAZero();
-  let questionPosee = false;
-  storageService.setKeyAdoptionConfirm(async () => { questionPosee = true; return false; });
+  const PHRASE_PERSO = 'ma phrase personnelle 2026';
+  await storageService.enableEncryption(PHRASE_PERSO, getJson);
+  avertissements = 0;
+  await storageService.deserializeImported(FICHIER_TIERS);
+  check('session deja chiffree : aucun avertissement', avertissements === 0, avertissements);
+  await storageService.save(getJson());
+  let ouvertParLeTiers = true;
+  try { await cryptoService.decryptEnvelope(JSON.parse(disk.content), cleTiers); } catch { ouvertParLeTiers = false; }
+  check('session deja chiffree : la phrase du fichier importe ne remplace pas la sienne', ouvertParLeTiers === false);
+  await storageService.disableEncryption(PHRASE_PERSO, getJson);
+
+  // 4. Import d'un fichier EN CLAIR : l'etat du chiffrement ne change pas.
+  await remettreAZero();
+  avertissements = 0;
+  const luClair = await storageService.deserializeImported(JSON.stringify({ portfolios: [], secret: 'en clair' }));
+  check('import en clair : le fichier est lu', luClair.secret === 'en clair');
+  check("import en clair : le chiffrement N'EST PAS active", storageService.isEncryptionEnabled() === false);
+  check('import en clair : aucun avertissement', avertissements === 0);
+  await storageService.save(getJson());
+  check('import en clair : les sauvegardes restent en clair',
+    JSON.parse(disk.content).secret === 'patrimoine 123456');
+
+  // 5. Une sauvegarde du dossier de l'application appartient a l'utilisateur : aucun
+  //    avertissement, sinon il apparaitrait a chaque demarrage.
+  await remettreAZero();
+  avertissements = 0;
   disk.content = FICHIER_TIERS;
   await storageService.load();
-  check("une sauvegarde locale n'ouvre aucune question d'adoption", questionPosee === false);
+  check("une sauvegarde locale n'ouvre aucun avertissement", avertissements === 0);
   check('une sauvegarde locale adopte bien la cle', storageService.isEncryptionEnabled() === true);
 
-  storageService.setKeyAdoptionConfirm(null);
+  storageService.setKeyAdoptionNotice(null);
   await remettreAZero();
 
   // ── B-03 : indicateur de chiffrement perdu, sauvegarde chiffrée sur le disque ──

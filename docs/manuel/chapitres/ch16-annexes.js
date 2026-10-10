@@ -156,13 +156,13 @@ children.push(tableau(
   ['Menu', 'Éléments'],
   [
     ['Fichier', 'Nouveau (Ctrl+N) · Sauvegarder (Ctrl+S) · Exporter une sauvegarde… · Importer une sauvegarde… · Fichiers récents… · Paramètres · Quitter'],
-    ['Éditer', 'Glossaire'],
+    ['Éditer', 'Couper · Copier · Coller · Tout sélectionner'],
     ['Affichage', 'Thèmes › Thème sombre · Thème clair — Langues › Français · English'],
-    ['Aide', "Manuel d'utilisation"],
+    ['Aide', "Manuel d'utilisation · Glossaire · Rechercher une mise à jour…"],
   ],
   [1800, 7226],
 ));
-children.push(p("Sur macOS, les raccourcis utilisent ⌘ au lieu de Ctrl ; « Quitter » se trouve dans le menu Fructificare, et le menu Éditer propose aussi Annuler, Couper, Copier, Coller et Tout sélectionner."));
+children.push(p("Sur macOS, les raccourcis utilisent ⌘ au lieu de Ctrl ; « Quitter » se trouve dans le menu Fructificare, et le menu Éditer propose aussi Annuler et Rétablir."));
 
 children.push(gap(100));
 children.push(bonASavoir([
