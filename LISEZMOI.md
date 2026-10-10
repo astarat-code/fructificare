@@ -53,7 +53,7 @@ Téléchargez le fichier de votre système depuis [fructificare.fr](https://fruc
 
 | Système | Fichier | |
 |---|---|---|
-| **Windows** 10 et 11 | `Fructificare_…_x64-setup.exe` | installation pour l'utilisateur courant, sans droits administrateur |
+| **Windows** 10 et 11 | `Fructificare_…_x64-setup.exe` | au choix : pour vous seul, ou pour tous les utilisateurs de l'ordinateur (ce second choix demande les droits administrateur) |
 | **Linux** | `Fructificare_…_amd64.AppImage` | toutes distributions : rendez-le exécutable, puis lancez-le (Ubuntu 24.04+ : installez d'abord `libfuse2`) |
 | | `Fructificare_…_amd64.deb` | Debian, Ubuntu et dérivées |
 | **macOS** 11+ — *expérimental* | `Fructificare_…_universal.dmg` | Intel et Apple Silicon ; glissez Fructificare dans Applications |

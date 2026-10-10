@@ -50,7 +50,7 @@ Download the file for your system from [fructificare.fr](https://fructificare.fr
 
 | System | File | |
 |---|---|---|
-| **Windows** 10 and 11 | `Fructificare_…_x64-setup.exe` | installs for the current user, without administrator rights |
+| **Windows** 10 and 11 | `Fructificare_…_x64-setup.exe` | lets you install for yourself only or for every user of the computer (the second choice needs administrator rights) |
 | **Linux** | `Fructificare_…_amd64.AppImage` | any distribution: make it executable, then run it (Ubuntu 24.04+: install `libfuse2` first) |
 | | `Fructificare_…_amd64.deb` | Debian, Ubuntu and derivatives |
 | **macOS** 11+ — *experimental* | `Fructificare_…_universal.dmg` | Intel and Apple Silicon; drag Fructificare into Applications |
