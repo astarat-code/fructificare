@@ -42,6 +42,7 @@ children.push(bonASavoir([
 // ── 14.2 ───────────────────────────────────────────────────────────────────
 children.push(h2('14.2  Preferences'));
 children.push(bullet([b('Show progression'), t(" — hides the tutorial and the monthly challenge. The Trophies page stays accessible and the health score keeps being calculated.")]));
+children.push(bullet([b('Check for updates automatically'), t(" — once a day, at startup, Fructificare reads the number of the latest version on GitHub and offers you the update if there is one. Nothing is sent: neither your data nor any identifier. This is the application's only Internet connection; untick it for a fully offline operation. "), ui('Help > Check for updates…'), t(" runs the check whenever you want.")]));
 children.push(bullet([b('Envelope colors'), t(" — switches between the "), i('Pastel'), t(" palette and the "), i('Classic'), t(" palette, live. The colors you have customized envelope by envelope are kept.")]));
 
 // ── 14.3 ───────────────────────────────────────────────────────────────────
@@ -118,6 +119,13 @@ children.push(attention([
 ]));
 
 children.push(p("Each time Fructificare opens, a window will ask for your passphrase to unlock reading the backup."));
+
+children.push(h3('Importing an encrypted backup'));
+children.push(p([
+  t("If encryption is off and you import an encrypted backup, Fructificare "), b('turns encryption on'),
+  t(" with the passphrase of that file and tells you so. If it is your own backup, there is nothing to do. If the file was given to you, the person who created it knows that passphrase: choose "),
+  ui('Change the passphrase'), t(" in the notice. Importing a plain-text backup does not change the encryption state."),
+]));
 
 children.push(h3('Your older backups'));
 children.push(p([

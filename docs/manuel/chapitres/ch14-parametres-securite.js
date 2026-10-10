@@ -42,6 +42,7 @@ children.push(bonASavoir([
 // ── 14.2 ───────────────────────────────────────────────────────────────────
 children.push(h2('14.2  Préférences'));
 children.push(bullet([b('Afficher la progression'), t(" — masque le tutoriel et le défi du mois. La page Trophées reste accessible et le score de santé continue d'être calculé.")]));
+children.push(bullet([b('Rechercher les mises à jour automatiquement'), t(" — une fois par jour, au démarrage, Fructificare lit sur GitHub le numéro de la dernière version et vous propose la mise à jour s'il y en a une. Rien n'est envoyé : ni vos données, ni aucun identifiant. C'est la seule connexion à Internet de l'application ; décochez pour un fonctionnement entièrement hors ligne. "), ui('Aide > Rechercher une mise à jour…'), t(" lance la recherche quand vous le voulez.")]));
 children.push(bullet([b('Couleurs des enveloppes'), t(" — bascule entre la palette "), i('Pastel'), t(" et la palette "), i('Classique'), t(", en direct. Les couleurs que vous avez personnalisées enveloppe par enveloppe sont préservées.")]));
 
 // ── 14.3 ───────────────────────────────────────────────────────────────────
@@ -118,6 +119,13 @@ children.push(attention([
 ]));
 
 children.push(p("À chaque ouverture de Fructificare, une fenêtre demandera votre phrase pour débloquer la lecture de la sauvegarde."));
+
+children.push(h3('Importer une sauvegarde chiffrée'));
+children.push(p([
+  t("Si le chiffrement n'est pas actif et que vous importez une sauvegarde chiffrée, Fructificare "), b('active le chiffrement'),
+  t(" avec la phrase de ce fichier et vous en avertit. S'il s'agit de votre propre sauvegarde, il n'y a rien à faire. Si le fichier vous a été transmis, la personne qui l'a créé connaît cette phrase : choisissez "),
+  ui('Changer la phrase'), t(" dans l'avertissement. Importer une sauvegarde en clair ne modifie pas l'état du chiffrement."),
+]));
 
 children.push(h3('Vos anciennes sauvegardes'));
 children.push(p([

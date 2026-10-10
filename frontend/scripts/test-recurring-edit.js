@@ -158,8 +158,8 @@ const parDate = (ds, rm) => {
 // 7. Décompte annoncé à l'utilisateur avant d'enregistrer.
 {
   const { ds, rm } = nouveau();
-  check('décompte — lignes à partir de juillet', ds.countRecurringOccurrencesFrom(rm.id, '2026-07-01'), 8);
-  check('décompte — tout l\'historique', ds.countRecurringOccurrencesFrom(rm.id, null), 20);
+  check('décompte — échéances à partir de juillet', ds.countRecurringOccurrencesFrom(rm.id, '2026-07-01'), 4);
+  check('décompte — tout l\'historique', ds.countRecurringOccurrencesFrom(rm.id, null), 10);
 }
 
 if (failures) { console.log(`\n${failures} vérification(s) en échec.`); process.exit(1); }

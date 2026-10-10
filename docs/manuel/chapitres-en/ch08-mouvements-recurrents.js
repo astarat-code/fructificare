@@ -99,12 +99,16 @@ children.push(...figure('8.3', "The series history",
 children.push(h3('Editing a series'));
 children.push(p([
   t("The "), b('pencil'),
-  t(" takes you back to the form, pre-filled. Changing the amount, start date, recurrence, type or fees applies to "), b('the whole series, past included'),
-  t(": the movements already generated are deleted and recreated with the new settings, and the envelope's balance is recalculated. To change the amount from a given date without touching the past, stop the series and create a new one."),
+  t(" takes you back to the form, pre-filled. At the bottom of the form, the "), ui('Apply the changes from'),
+  t(" field sets the date your changes take effect: "), b('today'), t(" by default, or a past date of your choice."),
 ]));
+children.push(bullet([b('Before that date'), t(" — the movements already recorded are left unchanged.")]));
+children.push(bullet([b('From that date'), t(" — if you change the amount, type, fees, allocation or recurrence, the movements already recorded are redone with the new settings, and the coming occurrences follow them. The form tells you how many occurrences are affected.")]));
+children.push(bullet([ui('From the start'), t(" — moves the effective date back to the start of the series: its whole history is redone.")]));
+children.push(p("Changing only the note or the end date redoes no movement. The effective date cannot be in the future: for an upcoming change, edit the series when the time comes."));
 children.push(p([
-  t("Every change of amount is recorded in a "), b('change log'),
-  t(" shown below the block, with its date and both values. You thus keep track of a change to a deposit."),
+  t("Every change is recorded in a "), b('change log'),
+  t(" shown below the block, with its date, its effective date and, for the amount, both values."),
 ]));
 
 children.push(h3('Stopping a series'));

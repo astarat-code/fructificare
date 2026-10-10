@@ -20,7 +20,7 @@ children.push(p("Fructificare suit votre patrimoine d'investisseur particulier :
 children.push(p([
   t("L'application ne se connecte à "),
   b('aucune'),
-  t(" banque et n'envoie rien sur Internet. Elle tourne en local sur votre ordinateur, et vos données restent dans un fichier que vous contrôlez. En contrepartie, c'est vous qui saisissez la valeur de vos comptes — c'est ce qu'on appelle "),
+  t(" banque et n'envoie rien sur Internet : sa seule connexion est la recherche d'une nouvelle version, que vous pouvez désactiver (§ 14.2). Elle tourne en local sur votre ordinateur, et vos données restent dans un fichier que vous contrôlez. En contrepartie, c'est vous qui saisissez la valeur de vos comptes — c'est ce qu'on appelle "),
   b('calibrer'),
   t(", et c'est le geste central du logiciel (chapitre 6)."),
 ]));
@@ -51,7 +51,7 @@ children.push(p([
 
 children.push(h3('Windows'));
 children.push(step([t('Téléchargez '), code('Fructificare_x64-setup.exe'), t(" depuis la page des versions du projet.")], 1));
-children.push(step("Double-cliquez sur l'installeur. Il s'installe pour votre compte utilisateur seul : aucun mot de passe administrateur n'est demandé.", 1));
+children.push(step("Double-cliquez sur l'installeur. Il propose d'installer Fructificare pour vous seul ou pour tous les utilisateurs de l'ordinateur ; ce second choix demande les droits administrateur. Vos données restent, dans les deux cas, propres à votre compte.", 1));
 children.push(step("Lancez Fructificare depuis le menu Démarrer.", 1));
 
 children.push(gap(120));

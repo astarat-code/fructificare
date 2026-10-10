@@ -5,7 +5,8 @@
 ## Threat model
 
 Fructificare is a single-user, offline desktop application, with no account and no server.
-It opens no port and makes no network request.
+It opens no port. Its only network request is the check for a new version (see "Updates"),
+which sends nothing and can be turned off.
 
 ### What the application protects against
 
@@ -213,9 +214,34 @@ installation exposes one portfolio, corrupting the publishing chain exposes them
   third-party install scripts — has no write permission. Only a second job, which merely
   uploads an already-built artifact, can publish.
 
+### Updates
+
+Once a day, at startup, the application reads the `latest.json` file attached to the latest
+release on GitHub. If a newer version exists, it offers it to you; if you accept, it
+downloads the installer from GitHub, verifies its signature and runs it. *Help › Check for
+updates* runs the same check on demand; *Settings › Preferences* turns the daily check off.
+
+- **Nothing is sent.** The request only reads a public file: no portfolio data, no
+  identifier, no statistic. GitHub sees the computer's IP address, as with any connection.
+- **The webview stays cut off from the network.** The check and the download happen on the
+  native side (`src-tauri/src/mise_a_jour.rs`). The CSP still forbids the interface any
+  outgoing connection, and the address queried is fixed in `tauri.conf.json`: a script can
+  neither change it nor pick another one.
+- **An installer is only run if it is signed.** Every published installer is signed with a
+  key reserved for updates; the application embeds the matching public key and rejects any
+  file whose signature does not match. Taking over the hosting is therefore not enough to
+  have a program installed.
+- **The private key never leaves a dedicated job.** In `release.yml`, only the `signer` job
+  receives it: it compiles nothing, runs no install script and only holds a read token. The
+  build jobs, which run third-party code, never see it.
+
+On Linux, only the AppImage replaces itself; a `.deb` package and the macOS version point to
+the download page.
+
 ### The installer and the network
 
-Once installed, the application makes no network request. **The installer, however, may make
+Apart from that check, the installed application makes no network request. **The installer,
+however, may make
 one**: if the WebView2 runtime is missing from your machine, it downloads Microsoft's
 official bootstrapper (`go.microsoft.com`) and runs it. WebView2 ships with Windows 11 and is
 deployed by Windows Update on Windows 10, so this is rare — but it exists, and it is better

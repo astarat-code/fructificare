@@ -9,9 +9,9 @@ life insurance, PER, regulated savings accounts).
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Website](https://img.shields.io/badge/website-fructificare.fr-EFAD24)](https://fructificare.fr/en/)
 
-**100% local.** No account, no server, no telemetry. The application makes no network
-request for any of its features — fonts and the user manual are embedded in the binary,
-and that absence is checked mechanically on every build.
+**100% local.** No account, no server, no telemetry. Your data never leaves your computer —
+fonts and the user manual are embedded in the binary. The only connection the application
+makes is a daily check for a new version, which sends nothing and can be turned off.
 
 ![The Fructificare dashboard, with a fictional portfolio](docs/images/screenshot-dashboard.png)
 
@@ -31,8 +31,12 @@ since when, what you earn and what you plan. Fructificare is built so that this 
 leaves your machine.
 
 - **No account, no server.** Nothing to sign up for, nothing to trust with your data.
-- **No network request at all.** Fonts and the manual are embedded; `npm run check:build`
-  fails the build if a remote resource appears.
+- **One network request, and it sends nothing.** Once a day the application reads the
+  number of the latest version from this repository's releases, to offer you the update.
+  Nothing about you or your data is sent, and the check can be turned off in
+  *Settings › Preferences*: Fructificare then makes no network request at all. Fonts and
+  the manual are embedded; `npm run check:build` fails the build if the interface tries to
+  load a remote resource.
 - **Minimal disk access.** The application can only read and write in its own folders; any
   other file has to be picked by you in a native dialog.
 - **Your data stays a file you own.** A readable JSON backup, which you can export, move,
@@ -140,7 +144,7 @@ protect against, and how to report a vulnerability.
 Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
 [SignPath Foundation](https://signpath.org).
 
-*Status: releases up to and including 1.2.0 are not signed. Signing starts with the first
+*Status: releases up to and including 1.3.0 are not signed. Signing starts with the first
 release published once the project has been onboarded by SignPath Foundation.*
 
 - **What is signed.** The Windows installer (`Fructificare_…_x64-setup.exe`) and the
@@ -156,9 +160,14 @@ release published once the project has been onboarded by SignPath Foundation.*
   approved individually before it is signed.
 - **Privacy policy.** This program will not transfer any information to other networked
   systems unless specifically requested by the user or the person installing or operating
-  it. Fructificare works offline: no account, no telemetry, no update check. The only
-  network access happens at installation on Windows, and only if the Microsoft WebView2
-  runtime is missing: the installer then downloads it from Microsoft.
+  it. Fructificare works offline: no account, no telemetry. It makes one kind of network
+  access on its own: once a day at startup, it reads a public file (`latest.json`) attached
+  to the latest release on GitHub to find out whether a newer version exists, and downloads
+  that version from GitHub if you accept the update. No personal data, identifier or usage
+  statistic is transmitted; as with any connection, GitHub sees your IP address. This check
+  can be turned off in *Settings › Preferences*. The only other network access happens at
+  installation on Windows, and only if the Microsoft WebView2 runtime is missing: the
+  installer then downloads it from Microsoft.
 
 ---
 
@@ -182,7 +191,7 @@ npm run tauri build    # desktop application for the current system
 
 ## Status and roadmap
 
-**v1.2.0 — Data folder of your choice.** The application is feature-complete and used daily, but it
+**v1.3.0 — Updates from within the application.** The application is feature-complete and used daily, but it
 has only run on a handful of machines. Windows and Linux are supported; the macOS version is
 experimental until Mac users have tried it. Expect rough edges, and please report them.
 

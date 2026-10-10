@@ -20,7 +20,7 @@ children.push(p("Fructificare tracks your wealth as a private investor: what you
 children.push(p([
   t("The application connects to "),
   b('no'),
-  t(" bank and sends nothing over the Internet. It runs locally on your computer, and your data stays in a file you control. In return, you enter the value of your accounts yourself — this is called "),
+  t(" bank and sends nothing over the Internet: its only connection is the check for a new version, which you can turn off (§ 14.2). It runs locally on your computer, and your data stays in a file you control. In return, you enter the value of your accounts yourself — this is called "),
   b('calibrating'),
   t(", and it is the core action of the software (chapter 6)."),
 ]));
@@ -51,7 +51,7 @@ children.push(p([
 
 children.push(h3('Windows'));
 children.push(step([t('Download '), code('Fructificare_x64-setup.exe'), t(" from the project's releases page.")], 1));
-children.push(step("Double-click the installer. It installs for your user account only: no administrator password is required.", 1));
+children.push(step("Double-click the installer. It offers to install Fructificare for you only or for every user of the computer; the second choice needs administrator rights. Either way, your data stays specific to your account.", 1));
 children.push(step("Launch Fructificare from the Start menu.", 1));
 
 children.push(gap(120));

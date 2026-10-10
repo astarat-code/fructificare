@@ -7,6 +7,48 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-10-10
+
+### Added
+
+- **Updates** — once a day, at startup, Fructificare looks for a newer version and offers
+  to download and install it in place. *Help › Check for updates…* runs the check on demand,
+  and *Settings › Preferences* turns the daily check off. The check reads a public file on
+  GitHub and sends nothing; an update is only installed if its signature matches the key
+  embedded in the application. This is the first network request the application makes: see
+  the privacy statement in the README and the "Updates" section of SECURITY.md.
+- **Recurring movements: changes apply from a date you choose** — the edit form asks from
+  which date the new settings apply (today by default). Movements recorded before that date
+  are kept as they were, and the modification log shows the date each change took effect.
+- **History: one line per multi-asset movement** — a movement spread over several assets
+  is shown as a single line with its totals; clicking it lists the detail by asset.
+- **Windows installer: for you only, or for every user** of the computer.
+- The version number is shown under the application name in the left menu.
+
+### Changed
+
+- **Transaction fees no longer count as invested.** A fee charged on top of an order (€75
+  order, €1 fee) was added to the amount invested and inflated the base of every return.
+  The amount invested is now €75 whatever the fee convention; the deposits shown include
+  the fee (€76). Existing movements are corrected when the data is loaded.
+- **Importing an encrypted backup turns encryption on**, with the passphrase of that file,
+  instead of asking and leaving the restored data in plain text if declined. A notice
+  offers to choose another passphrase. Importing a plain-text backup changes nothing.
+- The glossary moves from the Edit menu to the **Help** menu; the Edit menu now holds Cut,
+  Copy, Paste and Select All.
+- The asset allocation based on deposits is computed envelope by envelope: an asset
+  oversold in one envelope no longer reduces the same asset held in another.
+
+### Fixed
+
+- Editing a recurring movement rewrote every movement it had already recorded, even when
+  only its note was changed.
+- Movement templates created from the dashboard lost the fee convention (deducted or
+  added).
+- The same reminder notification piled up day after day.
+- Health score: the rating overlapped the ends of the gauge.
+- Avatar: the chapter name is no longer repeated next to the avatar's name.
+
 ## [1.2.0] — 2026-09-26
 
 ### Added
@@ -101,7 +143,8 @@ First public release.
 - **Public build chain** — CI-built Windows binaries with published SHA-256 fingerprints,
   actions pinned by commit hash, write token isolated in a job that compiles nothing.
 
-[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/astarat-code/fructificare/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/astarat-code/fructificare/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/astarat-code/fructificare/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/astarat-code/fructificare/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/astarat-code/fructificare/compare/v1.0.0...v1.0.1

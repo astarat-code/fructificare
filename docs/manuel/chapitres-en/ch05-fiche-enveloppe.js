@@ -69,7 +69,7 @@ children.push(p("The form takes up the top of the page. It is used for deposits 
 
 children.push(step([t('Choose the '), b('date'), t(". It cannot be earlier than the contract start date, nor later than today.")], 20));
 children.push(step([t('Enter the gross '), b('amount'), t('.')], 20));
-children.push(step([t('Enter the '), b('transaction fees'), t(" charged by your broker, as a percentage or in euros.")], 20));
+children.push(step([t('Enter the '), b('transaction fees'), t(" charged by your broker, as a percentage or in euros, and say whether they are "), b('deducted from the amount'), t(" typed or "), b('added to the amount'), t(" (a €75 order billed €76). Either way, only the amount actually invested is used to compute the return; the fees are counted in your deposits.")], 20));
 children.push(step([t('Add the '), b('annual fees'), t(" specific to this line, if it has any.")], 20));
 children.push(step([t("Select the "), b("asset type"), t('.')], 20));
 children.push(step([t('Optionally fill in the '), b('note'), t(", the "), b('quantity'), t(' and the '), b('unit price'), t('.')], 20));
@@ -226,6 +226,9 @@ children.push(p("The complete history, at the bottom of the page. Each column ca
 children.push(p('Two markers may accompany a row:'));
 children.push(bullet([b('Cash'), t(" — a withdrawal kept in the cash pocket.")]));
 children.push(bullet([b('🔄'), t(" — a movement generated automatically by a recurring series (chapter 8). Its note appears in italics.")]));
+children.push(p([
+  t("A movement spread over several assets takes "), b('a single row'), t(", which carries its totals and the number of assets. The chevron at the start of the row shows that it expands: one click lists, in smaller type, one row per asset, which you can edit or delete separately; a second click hides them."),
+]));
 
 children.push(p("The quantity and unit price, when filled in, are shown in small type below the amount."));
 children.push(p([

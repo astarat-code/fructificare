@@ -5,7 +5,8 @@
 ## Modèle de menace
 
 Fructificare est une application de bureau mono-utilisateur, hors ligne, sans compte ni
-serveur. Elle n'expose aucun port et n'émet aucune requête réseau.
+serveur. Elle n'expose aucun port. Sa seule requête réseau est la recherche d'une nouvelle
+version (voir « Les mises à jour »), qui n'envoie rien et se désactive.
 
 ### Ce contre quoi l'application protège
 
@@ -225,10 +226,36 @@ expose tous.
   et les scripts d'installation de dépendances tierces — n'a aucun droit d'écriture. Seul
   un second job, qui ne fait que téléverser un artefact déjà construit, peut publier.
 
+### Les mises à jour
+
+Une fois par jour, au démarrage, l'application lit le fichier `latest.json` joint à la
+dernière version publiée sur GitHub. Si une version plus récente existe, elle vous la
+propose ; si vous acceptez, elle télécharge l'installateur depuis GitHub, vérifie sa
+signature et le lance. *Aide › Rechercher une mise à jour* fait la même recherche à la
+demande ; *Paramètres › Préférences* désactive la recherche quotidienne.
+
+- **Rien n'est envoyé.** La requête est une simple lecture d'un fichier public : ni donnée
+  du patrimoine, ni identifiant, ni statistique. GitHub voit l'adresse IP de l'ordinateur,
+  comme pour toute connexion.
+- **La webview reste coupée du réseau.** La recherche et le téléchargement se font côté
+  natif (`src-tauri/src/mise_a_jour.rs`). La CSP continue d'interdire toute connexion
+  sortante à l'interface, et l'adresse interrogée est fixée dans `tauri.conf.json` : un
+  script ne peut ni la changer ni en choisir une autre.
+- **Un installateur n'est exécuté que s'il est signé.** Chaque installateur publié est signé
+  avec une clé réservée aux mises à jour ; l'application embarque la clé publique
+  correspondante et refuse tout fichier dont la signature ne correspond pas. Prendre le
+  contrôle de l'hébergement ne suffit donc pas à faire installer un programme.
+- **La clé privée ne quitte pas un job dédié.** Dans `release.yml`, seul le job `signer` la
+  reçoit : il ne compile rien, n'exécute aucun script d'installation et n'a qu'un jeton en
+  lecture. Les jobs de compilation, qui exécutent du code tiers, ne la voient jamais.
+
+Sous Linux, seule la version AppImage se remplace elle-même ; un paquet `.deb` et la version
+macOS renvoient vers la page de téléchargement.
+
 ### L'installeur et le réseau
 
-L'application, une fois installée, n'émet aucune requête réseau. **L'installeur, lui, peut
-en émettre une** : si le runtime WebView2 est absent de votre machine, il télécharge
+En dehors de cette recherche, l'application installée n'émet aucune requête réseau.
+**L'installeur, lui, peut en émettre une** : si le runtime WebView2 est absent de votre machine, il télécharge
 l'amorceur officiel de Microsoft (`go.microsoft.com`) et l'exécute. WebView2 étant fourni
 d'origine avec Windows 11 et déployé par Windows Update sur Windows 10, ce cas est rare —
 mais il existe, et il vaut mieux le lire ici que le découvrir dans un pare-feu.

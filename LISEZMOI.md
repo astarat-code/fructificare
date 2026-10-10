@@ -10,9 +10,9 @@ investisseurs français (PEA, CTO, assurance-vie, PER, livrets réglementés).
 [![Site](https://img.shields.io/badge/site-fructificare.fr-EFAD24)](https://fructificare.fr)
 
 **100 % locale.** Aucune donnée ne quitte votre ordinateur : pas de compte, pas de serveur,
-pas de télémétrie. L'application ne contacte le réseau pour aucune de ses fonctions — les
-polices et le manuel sont embarqués dans le binaire, et cette absence est vérifiée
-mécaniquement à chaque build.
+pas de télémétrie. Les polices et le manuel sont embarqués dans le binaire. La seule
+connexion de l'application est la recherche quotidienne d'une nouvelle version, qui n'envoie
+rien et se désactive dans les Paramètres.
 
 ![Le tableau de bord de Fructificare, avec un portefeuille fictif](docs/images/screenshot-dashboard.png)
 
@@ -32,8 +32,12 @@ depuis quand, ce que vous gagnez et ce que vous projetez. Fructificare est const
 que rien de tout cela ne quitte votre machine.
 
 - **Pas de compte, pas de serveur.** Rien à créer, personne à qui confier vos données.
-- **Aucune requête réseau.** Polices et manuel sont embarqués ; `npm run check:build` fait
-  échouer le build si une ressource distante apparaît.
+- **Une seule requête réseau, et elle n'envoie rien.** Une fois par jour, l'application lit
+  le numéro de la dernière version parmi les versions publiées de ce dépôt, pour vous
+  proposer la mise à jour. Rien sur vous ni sur vos données n'est envoyé, et la recherche se
+  désactive dans *Paramètres › Préférences* : Fructificare n'émet alors plus aucune requête.
+  Polices et manuel sont embarqués ; `npm run check:build` fait échouer le build si
+  l'interface tente de charger une ressource distante.
 - **Accès disque minimal.** L'application ne lit et n'écrit que dans ses propres dossiers ;
   tout autre fichier doit être désigné par vous dans une boîte de dialogue native.
 - **Vos données restent un fichier qui vous appartient.** Une sauvegarde JSON lisible, que
@@ -150,7 +154,7 @@ l'application ne protège pas, et la procédure de signalement d'une faille.
 Signature de code gratuite fournie par [SignPath.io](https://about.signpath.io), certificat
 par [SignPath Foundation](https://signpath.org).
 
-*État : les versions jusqu'à la 1.2.0 incluse ne sont pas signées. La signature commencera
+*État : les versions jusqu'à la 1.3.0 incluse ne sont pas signées. La signature commencera
 avec la première version publiée après l'admission du projet par SignPath Foundation.*
 
 - **Ce qui est signé.** L'installateur Windows (`Fructificare_…_x64-setup.exe`) et
@@ -166,9 +170,15 @@ avec la première version publiée après l'admission du projet par SignPath Fou
   version est approuvée individuellement avant d'être signée.
 - **Confidentialité.** Ce programme ne transfère aucune information vers d'autres systèmes
   en réseau, sauf demande expresse de l'utilisateur ou de la personne qui l'installe ou
-  l'utilise. Fructificare fonctionne hors ligne : ni compte, ni télémétrie, ni recherche de
-  mise à jour. Le seul accès réseau a lieu à l'installation sous Windows, et seulement si le
-  moteur Microsoft WebView2 est absent : l'installateur le télécharge alors chez Microsoft.
+  l'utilise. Fructificare fonctionne hors ligne : ni compte, ni télémétrie. Il n'accède au
+  réseau de lui-même que dans un cas : une fois par jour, au démarrage, il lit un fichier
+  public (`latest.json`) joint à la dernière version publiée sur GitHub pour savoir si une
+  version plus récente existe, et télécharge cette version depuis GitHub si vous acceptez la
+  mise à jour. Aucune donnée personnelle, aucun identifiant, aucune statistique d'usage
+  n'est transmis ; comme pour toute connexion, GitHub voit votre adresse IP. Cette recherche
+  se désactive dans *Paramètres › Préférences*. Le seul autre accès réseau a lieu à
+  l'installation sous Windows, et seulement si le moteur Microsoft WebView2 est absent :
+  l'installateur le télécharge alors chez Microsoft.
 
 ---
 
@@ -192,7 +202,7 @@ npm run tauri build    # application de bureau pour le système courant
 
 ## État et feuille de route
 
-**v1.2.0 — Dossier des données au choix.** L'application est complète et utilisée au quotidien, mais elle
+**v1.3.0 — Mises à jour depuis l'application.** L'application est complète et utilisée au quotidien, mais elle
 n'a tourné que sur quelques machines. Windows et Linux sont pris en charge ; la version macOS
 reste expérimentale tant que des utilisateurs Mac ne l'ont pas essayée. Attendez-vous à des
 aspérités, et signalez-les.

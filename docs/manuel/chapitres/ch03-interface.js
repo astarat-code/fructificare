@@ -45,7 +45,7 @@ children.push(bullet([ui('Trophées'), t(' — progression, score de santé, obj
 children.push(h3('Le menu en haut de la fenêtre'));
 children.push(p([
   t("Le glossaire et les paramètres ne figurent pas dans la barre latérale : ils s'ouvrent depuis le menu de la fenêtre, "),
-  ui('Éditer > Glossaire'), t(" (chapitre 15) et "), ui('Fichier > Paramètres'),
+  ui('Aide > Glossaire'), t(" (chapitre 15) et "), ui('Fichier > Paramètres'),
   t(" (chapitre 14). Ce menu regroupe aussi la sauvegarde, l'affichage et l'aide (§ 16.6)."),
 ]));
 

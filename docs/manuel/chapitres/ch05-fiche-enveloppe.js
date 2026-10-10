@@ -69,7 +69,7 @@ children.push(p("Le formulaire occupe le haut de la page. Il sert aussi bien aux
 
 children.push(step([t('Choisissez la '), b('date'), t(". Elle ne peut pas être antérieure à l'ouverture du contrat, ni postérieure à aujourd'hui.")], 20));
 children.push(step([t('Saisissez le '), b('montant'), t(' brut.')], 20));
-children.push(step([t('Renseignez les '), b('frais de transaction'), t(" prélevés par votre courtier, en pourcentage ou en euros.")], 20));
+children.push(step([t('Renseignez les '), b('frais de transaction'), t(" prélevés par votre courtier, en pourcentage ou en euros, et indiquez s'ils sont "), b('déduits du montant'), t(" saisi ou "), b('ajoutés au montant'), t(" (un ordre de 75 € facturé 76 €). Dans les deux cas, seul le montant réellement investi sert au calcul du rendement ; les frais sont comptés dans vos versements.")], 20));
 children.push(step([t('Ajoutez les '), b('frais annuels'), t(" propres à cette ligne, si elle en supporte de spécifiques.")], 20));
 children.push(step([t("Sélectionnez le "), b("type d'actif"), t('.')], 20));
 children.push(step([t('Complétez éventuellement la '), b('note'), t(", la "), b('quantité'), t(' et le '), b('prix unitaire'), t('.')], 20));
@@ -226,6 +226,9 @@ children.push(p("L'historique complet, en bas de page. Chaque colonne est triabl
 children.push(p('Deux marqueurs peuvent accompagner une ligne :'));
 children.push(bullet([b('Espèces'), t(" — un retrait conservé dans la poche de liquidités.")]));
 children.push(bullet([b('🔄'), t(" — un mouvement généré automatiquement par une série récurrente (chapitre 8). Sa note apparaît en italique.")]));
+children.push(p([
+  t("Un mouvement réparti sur plusieurs actifs occupe "), b('une seule ligne'), t(", qui porte ses totaux et la mention du nombre d'actifs. Le chevron en début de ligne signale qu'elle se déplie : un clic affiche, en plus petit, une ligne par actif, que vous pouvez modifier ou supprimer séparément ; un second clic les masque."),
+]));
 
 children.push(p("La quantité et le prix unitaire, quand ils sont renseignés, s'affichent en petit sous le montant."));
 children.push(p([
