@@ -66,7 +66,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "CLE_PUBLIQUE_A_RENSEIGNER",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY3RUVBQjZDMkJDQjgwMzMKUldRemdNc3JiS3Z1Wjk5RVYycUdxUjl0TlBWTzZPcDN2dndTK1pqWnRyT1p5elVlNk1haExxWnUK",
       "endpoints": [
         "https://github.com/astarat-code/fructificare/releases/latest/download/latest.json"
       ]
