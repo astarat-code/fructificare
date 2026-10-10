@@ -11,6 +11,7 @@ import Disclaimer from "../components/ui/Disclaimer";
 import CalibrationModal from "../components/CalibrationModal";
 import { DIETZ_NOTE } from "../components/ui/Disclaimer";
 import { signeFrais, montantNet } from "../lib/transactionFees";
+import { regrouperMouvements } from "../lib/movementGroups";
 import { versementsPea } from "../lib/peaCap";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -42,7 +43,7 @@ const darkenHex = (hex) => _shadeHex(hex, 0.7);
 const lightenHex = (hex) => _shadeHex(hex, 1.35);
 import { toast } from "sonner";
 import { ComposedChart, Area, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Trash2, Edit2, RefreshCw, BarChart3, TableIcon, AlertTriangle, Wallet, TrendingUp, TrendingDown, Target, Settings, ArrowUpDown, Info } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Trash2, Edit2, RefreshCw, BarChart3, TableIcon, AlertTriangle, Wallet, TrendingUp, TrendingDown, Target, Settings, ArrowUpDown, Info, ChevronRight, ChevronDown } from "lucide-react";
 import RegularMovementsPanel from "../components/RegularMovementsPanel";
 import DocumentsSection from "../components/DocumentsSection";
 import { displayNote } from "../lib/displayNote";
@@ -189,6 +190,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
 
   // Pagination de l'historique
   const [txPage, setTxPage] = useState(0);
+  // Mouvements multi-actifs dépliés dans l'historique (identifiants de groupe).
+  const [groupesOuverts, setGroupesOuverts] = useState(() => new Set());
   const TX_PAGE_SIZE = 100;
 
   // Tri de l'historique (par défaut : date décroissante = plus récent en haut)
@@ -599,7 +602,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
     switch (key) {
       case 'date':        return tx.date || '';
       case 'type':        return tx.type || '';
-      case 'asset_type':  return (tx.asset_type === 'autre' && tx.custom_asset_type)
+      case 'asset_type':  if (tx.lignes) return `${tx.lignes.length}`;
+                          return (tx.asset_type === 'autre' && tx.custom_asset_type)
                                    ? tx.custom_asset_type
                                    : (tx.asset_type ? (t(`assetTypes.${tx.asset_type}`) || tx.asset_type) : '');
       case 'amount':      return tx.amount || 0;
@@ -610,7 +614,9 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
       default:            return '';
     }
   };
-  const sortedTransactions = [...transactions].sort((a, b) => {
+  // Un mouvement réparti sur plusieurs actifs est enregistré en une ligne par actif :
+  // l'historique le présente en UNE ligne, dépliable (voir lib/movementGroups).
+  const sortedTransactions = regrouperMouvements(transactions).sort((a, b) => {
     const va = sortValue(a, txSort.key);
     const vb = sortValue(b, txSort.key);
     let cmp;
@@ -1316,7 +1322,7 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
       })()}
 
       <Card className="border border-border shadow-sm" style={{ borderColor: envColor }} data-testid="transactions-table">
-        <CardHeader><CardTitle className="font-heading text-lg">{t("portfolio.transactions")} ({transactions.length})</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="font-heading text-lg">{t("portfolio.transactions")} ({sortedTransactions.length})</CardTitle></CardHeader>
         <CardContent>
           {transactions.length === 0 ? <p className="text-muted-foreground text-center py-8">{t("tax.noMovements")}</p> : (
             <div className="overflow-x-auto">
@@ -1331,9 +1337,16 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                 <SortHead col="note" className="hidden sm:table-cell">{t("portfolio.note")}</SortHead>
                 <TableHead className="text-right">{t("common.actions")}</TableHead>
               </TableRow></TableHeader>
-              <TableBody>{sortedTransactions.slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE).map((tx) => (
-                <TableRow key={tx.id} data-testid={`tx-row-${tx.id}`} className={tx.from_recurring_id ? 'opacity-80' : ''}>
-                  <TableCell className="font-mono text-sm">{tx.date}</TableCell>
+              <TableBody>{(() => {
+                // Ligne d'un mouvement. `detail` : ligne par actif d'un mouvement déplié,
+                // en plus petit sous la ligne du mouvement.
+                const ligneMouvement = (tx, detail) => (
+                <TableRow
+                  key={tx.id}
+                  data-testid={`tx-row-${tx.id}`}
+                  className={`${tx.from_recurring_id ? 'opacity-80' : ''} ${detail ? 'bg-muted/30 [&_td]:py-1 [&_td]:text-xs' : ''}`}
+                >
+                  <TableCell className={detail ? 'pl-8 text-muted-foreground' : 'font-mono text-sm'}>{detail ? '↳' : tx.date}</TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-1">
                       <Badge className={tx.type === "deposit" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"}>
@@ -1399,13 +1412,78 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                     <Button variant="ghost" size="icon" onClick={() => setDeleteDialog(tx.id)} data-testid={`delete-tx-${tx.id}`}><Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive" /></Button>
                   </TableCell>
                 </TableRow>
-              ))}</TableBody></Table>
+                );
+                // Ligne d'un mouvement réparti sur plusieurs actifs : totaux du mouvement,
+                // et un chevron qui annonce le détail par actif.
+                const ligneGroupe = (g) => {
+                  const ouvert = groupesOuverts.has(g.id);
+                  const basculer = () => setGroupesOuverts((prev) => {
+                    const suivant = new Set(prev);
+                    if (suivant.has(g.id)) suivant.delete(g.id); else suivant.add(g.id);
+                    return suivant;
+                  });
+                  const Chevron = ouvert ? ChevronDown : ChevronRight;
+                  return (
+                    <TableRow
+                      key={g.id}
+                      data-testid={`tx-group-${g.id}`}
+                      className={`cursor-pointer hover:bg-accent/40 ${g.from_recurring_id ? 'opacity-80' : ''}`}
+                      onClick={basculer}
+                      aria-expanded={ouvert}
+                      title={ouvert ? L('Masquer le détail par actif', 'Hide the breakdown by asset') : L('Afficher le détail par actif', 'Show the breakdown by asset')}
+                    >
+                      <TableCell className="font-mono text-sm">
+                        <span className="inline-flex items-center gap-1">
+                          <Chevron className="w-4 h-4 shrink-0 text-primary" />
+                          {g.date}
+                        </span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={g.type === "deposit" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400"}>
+                          {g.type === "deposit" ? t("portfolio.deposit") : t("portfolio.withdrawal")}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                          {g.lignes.length} {L('actifs', 'assets')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">{fmt(g.amount)}</TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-amber-600">
+                        {g.fees_amount > 0 ? `${signeFrais(g)}${fmt(g.fees_amount)}` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums text-purple-600">
+                        {(g.annual_fees_pct || 0) > 0 ? `${g.annual_fees_pct}${g.annual_fees_type === 'euro' ? ' €/an' : '%'}` : "-"}
+                      </TableCell>
+                      <TableCell className={`text-right font-mono tabular-nums font-medium ${g.type === "deposit" ? "text-emerald-600 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+                        {g.type === "deposit" ? "+" : "-"}{fmt(g.net_amount)}
+                      </TableCell>
+                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm max-w-[150px] truncate">
+                        {g.from_recurring_id && (
+                          <span className="text-[9px] font-semibold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded px-1 py-0.5 mr-1">
+                            🔄
+                          </span>
+                        )}
+                        <span className={g.from_recurring_id ? 'italic' : ''}>{displayNote(g.note, lang)}</span>
+                      </TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                        {ouvert ? L('Masquer', 'Hide') : L('Détail', 'Details')}
+                      </TableCell>
+                    </TableRow>
+                  );
+                };
+                return sortedTransactions
+                  .slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE)
+                  .flatMap((row) => (row.lignes
+                    ? [ligneGroupe(row), ...(groupesOuverts.has(row.id) ? row.lignes.map((l) => ligneMouvement(l, true)) : [])]
+                    : [ligneMouvement(row, false)]));
+              })()}</TableBody></Table>
             </div>
           )}
-          {transactions.length > TX_PAGE_SIZE && (
+          {sortedTransactions.length > TX_PAGE_SIZE && (
             <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
               <span className="text-sm text-muted-foreground">
-                {txPage * TX_PAGE_SIZE + 1}–{Math.min((txPage + 1) * TX_PAGE_SIZE, transactions.length)} sur {transactions.length}
+                {txPage * TX_PAGE_SIZE + 1}–{Math.min((txPage + 1) * TX_PAGE_SIZE, sortedTransactions.length)} sur {sortedTransactions.length}
               </span>
               <div className="flex gap-2">
                 {txPage > 0 && (
@@ -1413,7 +1491,7 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                     {L('← Page précédente', '← Previous page')}
                   </Button>
                 )}
-                {(txPage + 1) * TX_PAGE_SIZE < transactions.length && (
+                {(txPage + 1) * TX_PAGE_SIZE < sortedTransactions.length && (
                   <Button variant="outline" size="sm" onClick={() => setTxPage(txPage + 1)}>
                     {L('Page suivante →', 'Next page →')}
                   </Button>

@@ -1041,9 +1041,6 @@ export default function RegularMovementsPanel({
                       onChange={(e) => setEffectiveFrom(e.target.value && e.target.value <= today() ? e.target.value : today())}
                       data-testid="rm-effective-from-input"
                     />
-                    <Button type="button" variant="outline" size="sm" onClick={() => setEffectiveFrom(today())}>
-                      {L("Aujourd'hui", 'Today')}
-                    </Button>
                     <Button type="button" variant="outline" size="sm" onClick={() => setEffectiveFrom(editOriginalStart)} data-testid="rm-effective-from-start">
                       {L('Depuis le début', 'From the start')}
                     </Button>

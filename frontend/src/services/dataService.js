@@ -2932,7 +2932,7 @@ function getAssetTypeStats() {
       stats[statKey].deposits += net;
       stats[statKey].balance += net;
     } else if (tx.type === 'withdrawal') {
-      const gross = tx.amount || tx.net_amount;
+      const gross = montantFraisCompris(tx);
       const net = tx.net_amount || tx.amount;
       stats[statKey].withdrawals += net;
       stats[statKey].balance -= gross;
@@ -2953,7 +2953,9 @@ function getAssetTypeStats() {
 /**
  * Répartition par type d'actif, sur base des VERSEMENTS ou de la VALEUR RÉELLE.
  * @param {boolean} useRealValue
- *   false → soldes des versements (== getAssetTypeStats().balance).
+ *   false → soldes des versements, calculés enveloppe par enveloppe : un actif survendu
+ *           dans une enveloppe (solde négatif) n'y compte pour rien, au lieu de venir
+ *           en déduction du même actif détenu dans une autre enveloppe.
  *   true  → valeur réelle par enveloppe :
  *           • calibration avec détail par actif (niveau 2) → valeurs réelles par actif ;
  *           • calibration totale seule (niveau 1) → total réparti au prorata des versements ;
@@ -2967,9 +2969,22 @@ function getAssetAllocation(useRealValue) {
     totals[k] = (totals[k] || 0) + v;
   };
 
+  // Composition par actif d'une enveloppe, base versements (hors transactions de calibration)
+  const compositionVersements = (portfolioId) => {
+    const envAsset = {};
+    getTransactions(portfolioId).filter(t => !_isCalibrationTx(t)).forEach(t => {
+      const k   = resolveAssetType(t) || 'non_defini';
+      const net = t.net_amount ?? t.amount ?? 0;
+      if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
+      else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - montantFraisCompris(t);
+    });
+    return envAsset;
+  };
+
   if (!useRealValue) {
-    const stats = getAssetTypeStats();
-    Object.entries(stats).forEach(([type, s]) => { if (s.balance > 0) add(type, s.balance); });
+    getPortfolios().forEach(p => {
+      Object.entries(compositionVersements(p.id)).forEach(([k, v]) => { if (v > 0) add(k, v); });
+    });
     return totals;
   }
 
@@ -2977,14 +2992,7 @@ function getAssetAllocation(useRealValue) {
     const cals    = getCalibrations(p.id);
     const lastCal = cals.length ? cals[cals.length - 1] : null;
 
-    // Composition par actif de l'enveloppe, base versements (hors transactions de calibration)
-    const envAsset = {};
-    getTransactions(p.id).filter(t => !_isCalibrationTx(t)).forEach(t => {
-      const k   = resolveAssetType(t) || 'non_defini';
-      const net = t.net_amount ?? t.amount ?? 0;
-      if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
-      else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - montantFraisCompris(t);
-    });
+    const envAsset = compositionVersements(p.id);
     const depTotal = Object.values(envAsset).reduce((s, v) => s + Math.max(0, v), 0);
 
     if (lastCal) {
@@ -4519,12 +4527,14 @@ function updateRegularMovement(id, updates, options = {}) {
 }
 
 /**
- * Nombre de mouvements déjà enregistrés par un récurrent à partir d'une date : ceux
- * qu'une modification prenant effet à cette date remplacerait.
+ * Nombre d'échéances déjà enregistrées par un récurrent à partir d'une date : celles
+ * qu'une modification prenant effet à cette date remplacerait. Une échéance répartie sur
+ * plusieurs actifs compte pour une.
  */
 function countRecurringOccurrencesFrom(id, fromDate) {
-  return (getData().transactions || [])
-    .filter(tx => tx.from_recurring_id === id && (!fromDate || tx.date >= fromDate)).length;
+  return new Set((getData().transactions || [])
+    .filter(tx => tx.from_recurring_id === id && (!fromDate || tx.date >= fromDate))
+    .map(tx => tx.date)).size;
 }
 
 function stopRegularMovement(id) {
