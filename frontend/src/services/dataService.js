@@ -2963,9 +2963,9 @@ function getAssetTypeStats() {
  * @returns {Object<string, number>} { assetType: value }
  */
 /** Composition par actif d'une enveloppe, base versements (hors transactions de calibration). */
-function compositionVersements(portfolioId) {
+function compositionVersements(portfolioId, txs = null) {
   const envAsset = {};
-  getTransactions(portfolioId).filter(t => !_isCalibrationTx(t)).forEach(t => {
+  (txs || getTransactions(portfolioId)).filter(t => !_isCalibrationTx(t)).forEach(t => {
     const k   = resolveAssetType(t) || 'non_defini';
     const net = t.net_amount ?? t.amount ?? 0;
     if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
@@ -2979,12 +2979,15 @@ function compositionVersements(portfolioId) {
  * type d'actif. Deux actifs achetés par un même mouvement (un récurrent réparti entre un
  * fonds en euros et un ETF) forment donc deux lignes, que l'on peut vendre séparément.
  *
+ * @param {string} portfolioId
+ * @param {Array|null} [txs] — mouvements de l'enveloppe, quand ils ne sont pas ceux du
+ *   tableau de bord (enveloppe d'une simulation)
  * @returns {Array<{ cle, note, asset_type, custom_asset_type, type_resolu, investi, unites }>}
  *   lignes dont le montant investi restant est positif, de la plus grosse à la plus petite.
  */
-function getHeldLines(portfolioId) {
+function getHeldLines(portfolioId, txs = null) {
   const lignes = new Map();
-  getTransactions(portfolioId).filter(t => !_isCalibrationTx(t)).forEach(t => {
+  (txs || getTransactions(portfolioId)).filter(t => !_isCalibrationTx(t)).forEach(t => {
     if (t.type !== 'deposit' && t.type !== 'withdrawal') return;
     const note = (t.note || '').trim();
     const typeResolu = resolveAssetType(t) || 'non_defini';
@@ -3015,10 +3018,11 @@ function getHeldLines(portfolioId) {
  * @param {string|null} [typeActif]   type d'actif vendu, tel qu'enregistré sur le mouvement
  * @returns {{ depasse: boolean, motif: 'enveloppe'|'actif'|null, disponible: number }}
  */
-function checkWithdrawal(portfolioId, montant, typeActif = null) {
-  const p = getPortfolio(portfolioId);
+function checkWithdrawal(portfolioId, montant, typeActif = null, contexte = null) {
+  // `contexte` : { balance, calibrations, transactions } d'une enveloppe de simulation.
+  const p = contexte || getPortfolio(portfolioId);
   if (!p) return { depasse: false, motif: null, disponible: 0 };
-  const cals = getCalibrations(portfolioId);
+  const cals = contexte ? (contexte.calibrations || []) : getCalibrations(portfolioId);
   const derniere = cals.length ? cals[cals.length - 1] : null;
   // Valeur de référence : la plus favorable entre la dernière valeur constatée et le
   // montant investi, pour ne pas alerter à tort juste après un versement.
@@ -3026,7 +3030,7 @@ function checkWithdrawal(portfolioId, montant, typeActif = null) {
   if (montant > valeur + 0.005) return { depasse: true, motif: 'enveloppe', disponible: Math.max(0, valeur) };
   if (typeActif) {
     const cle = resolveAssetType({ portfolio_id: portfolioId, asset_type: typeActif });
-    const investi = compositionVersements(portfolioId)[cle] || 0;
+    const investi = compositionVersements(portfolioId, contexte ? contexte.transactions : null)[cle] || 0;
     // Sans valeur constatée par actif, seul le montant investi est connu : on ne signale
     // que le cas où l'enveloppe ne détient rien, ou presque, de cet actif.
     if (investi <= 0.005) return { depasse: true, motif: 'actif', disponible: 0 };
@@ -4599,6 +4603,8 @@ function updateRegularMovement(id, updates, options = {}) {
     auditEntries.push(entree);
   });
   next.historique_modifications = [...(existing.historique_modifications || []), ...auditEntries];
+  // Réglages modifiés : une confirmation de dépassement donnée pour les anciens ne vaut plus.
+  if (changes.length > 0) { next.allow_overdraw = false; next.overdraw_pending = null; }
 
   store.regular_movements[idx] = next;
   const updated = next;
@@ -4625,6 +4631,34 @@ function countRecurringOccurrencesFrom(id, fromDate) {
   return new Set((getData().transactions || [])
     .filter(tx => tx.from_recurring_id === id && (!fromDate || tx.date >= fromDate))
     .map(tx => tx.date)).size;
+}
+
+/** Retraits récurrents en attente parce qu'ils dépassent le contenu de leur enveloppe. */
+function getRecurringOverdraws() {
+  const store = getData();
+  return (store.regular_movements || [])
+    .filter(rm => rm.status === 'active' && rm.overdraw_pending)
+    .map(rm => ({
+      id: rm.id,
+      note: rm.note || '',
+      portfolio: ((store.portfolios || []).find(p => p.id === rm.portfolio_id) || {}).name || '',
+      ...rm.overdraw_pending,
+    }));
+}
+
+/**
+ * L'utilisateur confirme qu'un retrait récurrent doit continuer à s'appliquer bien qu'il
+ * dépasse le contenu de l'enveloppe. La confirmation vaut pour la suite de la série ; elle
+ * est redemandée si les réglages de la série changent.
+ */
+function confirmRecurringOverdraw(id) {
+  const rm = (getData().regular_movements || []).find(r => r.id === id);
+  if (!rm) return;
+  rm.allow_overdraw = true;
+  rm.overdraw_pending = null;
+  syncRegularMovements();
+  saveData();
+  try { gamificationService.dispatchEvent('recurringMovementsUpdated', {}); } catch (_) {}
 }
 
 function stopRegularMovement(id) {
@@ -4841,6 +4875,9 @@ function syncRegularMovements(catchUpReport = null) {
       );
 
       let toApply = allDates.filter(d => !existingDates.has(d));
+      // L'attente éventuelle est réévaluée à chaque passage : elle disparaît d'elle-même
+      // si un versement a entre-temps rendu le retrait possible.
+      if (rm.overdraw_pending) rm.overdraw_pending = null;
       if (toApply.length === 0) continue;
 
       // Plafond de rattrapage (contexte runRecurringCatchUp uniquement) : ne pas
@@ -4864,6 +4901,17 @@ function syncRegularMovements(catchUpReport = null) {
         if (!portfolio) continue;
 
         const amount    = parseFloat(rm.amount) || 0;
+        // Un retrait récurrent qui dépasse ce que contient l'enveloppe n'est pas appliqué
+        // d'office : la série est mise en attente à cette échéance, et l'utilisateur
+        // décide de la poursuivre ou de l'arrêter (voir confirmRecurringOverdraw).
+        if (rm.type === 'withdrawal' && !rm.allow_overdraw) {
+          const disponible = checkWithdrawal(rm.portfolio_id, amount).disponible;
+          if (checkWithdrawal(rm.portfolio_id, amount).depasse) {
+            rm.overdraw_pending = { date, amount, disponible: Math.round(disponible * 100) / 100 };
+            _hasUnsavedChanges = true;
+            break;
+          }
+        }
         // Frais de transaction du récurrent appliqués à chaque occurrence (% ou € fixe)
         const feesType  = rm.fees_type === 'euro' ? 'euro' : 'percent';
         const feeInput  = parseFloat(rm.fees_pct) || 0;
@@ -5340,7 +5388,7 @@ const dataService = {
   getBudgetEntries, getBudgetEntriesForMonth, createBudgetEntry, updateBudgetEntry, deleteBudgetEntry,
   // Regular movements (mouvements réguliers)
   getRegularMovements, getRegularMovementsByPortfolio,
-  getHeldLines, checkWithdrawal,
+  getHeldLines, checkWithdrawal, getRecurringOverdraws, confirmRecurringOverdraw,
   createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, stopRegularMovement, deleteRegularMovement, applyNoteToRecurringOccurrences,
   getRegularMovementOccurrences, getRegularMovementOccurrencesForMonth, syncRegularMovements, runRecurringCatchUp,
   // Programmed movements

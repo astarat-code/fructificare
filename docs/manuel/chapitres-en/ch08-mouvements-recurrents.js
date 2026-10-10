@@ -111,6 +111,14 @@ children.push(p([
   t(" shown below the block, with its date, its effective date and, for the amount, both values."),
 ]));
 
+children.push(h3('A recurring withdrawal that exceeds what the envelope holds'));
+children.push(p([
+  t("When a withdrawal occurrence exceeds what the envelope holds, according to your movements and your last calibration, Fructificare "), b('does not record it'),
+  t(": the series is put on hold at that occurrence and a window asks you to choose. "), ui('Keep applying it'),
+  t(" records that occurrence and the following ones, without asking again until you edit the series; "), ui('Stop this movement'),
+  t(" ends the series and keeps the withdrawals already recorded; "), ui('Later'), t(" leaves the series on hold, and the question comes back at the next start. A deposit that makes the withdrawal possible lifts the hold by itself."),
+]));
+
 children.push(h3('Stopping a series'));
 children.push(p([
   t("The "), b('square'),

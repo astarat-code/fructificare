@@ -111,6 +111,14 @@ children.push(p([
   t(" affiché sous le bloc, avec sa date, sa date d'effet et, pour le montant, les deux valeurs."),
 ]));
 
+children.push(h3('Un retrait récurrent qui dépasse le contenu de l\'enveloppe'));
+children.push(p([
+  t("Quand une échéance de retrait dépasse ce que contient l'enveloppe, d'après vos mouvements et votre dernière calibration, Fructificare "), b("ne l'enregistre pas"),
+  t(" : la série est mise en attente à cette échéance et une fenêtre vous demande de choisir. "), ui("Continuer à l'appliquer"),
+  t(" enregistre l'échéance et les suivantes, sans redemander tant que vous ne modifiez pas la série ; "), ui('Arrêter ce mouvement'),
+  t(" clôt la série en conservant les retraits déjà enregistrés ; "), ui('Plus tard'), t(" laisse la série en attente, et la question revient au prochain démarrage. Un versement qui rend le retrait possible lève l'attente de lui-même."),
+]));
+
 children.push(h3('Arrêter une série'));
 children.push(p([
   t("L'icône "), b('carré'),

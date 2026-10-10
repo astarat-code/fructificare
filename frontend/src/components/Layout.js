@@ -17,6 +17,7 @@ import { openManual } from "../lib/openManual";
 import ConfirmDialog from "./ConfirmDialog";
 import DataFolderDialog from "./DataFolderDialog";
 import UpdateDialog from "./UpdateDialog";
+import RecurringOverdrawDialog from "./RecurringOverdrawDialog";
 import { requestManualCheck } from "../lib/updater";
 import { getDataFolderInfo } from "../lib/dataFolder";
 import { toast } from "sonner";
@@ -673,6 +674,7 @@ export default function Layout({ children }) {
 
       {/* « Nouveau » (menu natif) : vider l'espace de travail — voir le gestionnaire menu-action. */}
       <UpdateDialog />
+      <RecurringOverdrawDialog />
       <DataFolderDialog
         open={dataFolder.open}
         mode={dataFolder.mode}

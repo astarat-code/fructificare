@@ -129,22 +129,21 @@ children.push(bonASavoir([
 
 // ── 5.5 ────────────────────────────────────────────────────────────────────
 children.push(h2('5.5  La question du retrait'));
-children.push(p("Quand vous cliquez sur Vente, Fructificare pose une question avant d'enregistrer : où va l'argent ?"));
+children.push(p("Le bouton rouge Vente ouvre la fenêtre de vente. Une fois celle-ci validée, Fructificare pose une dernière question avant d'enregistrer : où va l'argent ?"));
+children.push(h3('La fenêtre de vente'));
 children.push(p([
-  t("Deux contrôles précèdent cette question. Si l'enveloppe distingue ses actifs, le "), b("type d'actif vendu"),
-  t(" est obligatoire : une vente sans type ne serait retirée d'aucune ligne. Et si le montant dépasse ce que contient l'enveloppe, d'après vos mouvements et votre dernière calibration, une "),
-  b('confirmation'), t(" vous est demandée — sans jamais l'interdire, car vendre plus que le montant investi est normal quand l'actif a pris de la valeur."),
-]));
-children.push(h3('Vendre une ligne'));
-children.push(p([
-  t("Le bouton "), ui('Vendre une ligne…'),
-  t(" vend une position précise sans rien ressaisir. Il liste ce qui reste investi dans l'enveloppe, regroupé par "), b('note et type d\'actif'),
+  t("Elle reprend ce que vous avez saisi dans le formulaire et vous demande "), b('ce que vous vendez'),
+  t(". La liste "), ui('Ligne vendue'), t(" présente ce qui reste investi dans l'enveloppe, regroupé par "), b("note et type d'actif"),
   t(" : deux actifs achetés par un même mouvement récurrent forment deux lignes, que vous pouvez vendre séparément, en tout ou en partie."),
 ]));
-children.push(step("Choisissez la ligne. Le montant proposé est ce qui y reste investi ; modifiez-le pour une vente partielle.", 22));
-children.push(step("Indiquez les frais éventuels et la date.", 22));
-children.push(step([t("Laissez cochée "), ui('Conserver le produit en espèces'), t(" pour un arbitrage (vous enregistrerez ensuite l'achat, payé par ces espèces), ou décochez si l'argent quitte l'enveloppe.")], 22));
-children.push(p("La vente reprend la note et le type d'actif de la ligne : elle n'est retirée que de celle-ci."));
+children.push(step("Choisissez la ligne, ou « Autre… » pour un actif qui n'y figure pas : la fenêtre déroule alors le type d'actif vendu, ou plusieurs types avec leur répartition si vous cochez « Types d'actifs multiples ».", 22));
+children.push(step("Saisissez le montant et la date.", 22));
+children.push(step([t("Indiquez les frais, en pourcentage ou en euros, et leur sens. "), b('Frais déduits'), t(" : le montant saisi est ce qui est vendu, vous recevez ce montant moins les frais. "), b('Frais ajoutés'), t(" : le montant saisi est ce que vous recevez, les frais sont vendus en plus.")], 22));
+children.push(p("Sous les frais, un résumé indique ce qui est retiré des actifs, les frais et ce que vous recevez ; pour une ligne, il rappelle le montant investi et ce qu'il en restera après la vente, recalculé à chaque saisie."));
+children.push(p([
+  t("Si le montant dépasse ce qui reste investi sur la ligne, ou ce que contient l'enveloppe d'après vos mouvements et votre dernière calibration, une "),
+  b('confirmation'), t(" vous est demandée — sans jamais l'interdire, car vendre plus que le montant investi est normal quand l'actif a pris de la valeur. Les enveloppes d'une simulation se comportent de la même façon."),
+]));
 children.push(gap(100));
 children.push(...figure('5.4', 'La fenêtre de confirmation de retrait',
   "la fenêtre avec ses deux options — « Conserver en espèces » en bleu et « Ne pas conserver » en rouge — et leurs descriptions."));

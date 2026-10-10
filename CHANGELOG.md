@@ -22,11 +22,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are kept as they were, and the modification log shows the date each change took effect.
 - **History: one line per multi-asset movement** — a movement spread over several assets
   is shown as a single line with its totals; clicking it lists the detail by asset.
-- **Sell a line** — on an envelope, *Sell a line…* lists what remains invested, by note and
-  asset type, and sells one of them in full or in part. Two assets bought by the same
-  recurring movement can be sold separately.
+- **Sale window** — the red Withdrawal button now opens a window that asks what is sold:
+  one of the lines still invested (by note and asset type, so two assets bought by the same
+  recurring movement can be sold separately), or "Other" with one or several asset types.
+  Fees can be deducted from or added to the amount, and a summary shows what is taken from
+  the assets, what is received and what remains in the line. Simulation envelopes behave
+  the same way.
 - **Withdrawal checks** — the asset type sold is required when the envelope tells its
-  assets apart, and a withdrawal larger than what the envelope holds asks for confirmation.
+  assets apart, and a sale larger than what the line or the envelope holds asks for
+  confirmation. A recurring withdrawal that exceeds what its envelope holds is no longer
+  recorded: the series is put on hold and you choose to keep applying it or to stop it.
 - **Windows installer: for you only, or for every user** of the computer.
 - The version number is shown under the application name in the left menu.
 

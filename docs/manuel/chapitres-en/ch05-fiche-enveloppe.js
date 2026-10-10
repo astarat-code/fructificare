@@ -129,22 +129,21 @@ children.push(bonASavoir([
 
 // ── 5.5 ────────────────────────────────────────────────────────────────────
 children.push(h2('5.5  The withdrawal question'));
-children.push(p("When you click Withdrawal, Fructificare asks a question before saving: where does the money go?"));
+children.push(p("The red Withdrawal button opens the sale window. Once it is validated, Fructificare asks one last question before saving: where does the money go?"));
+children.push(h3('The sale window'));
 children.push(p([
-  t("Two checks come before that question. If the envelope tells its assets apart, the "), b('asset type sold'),
-  t(" is required: a sale without a type would be taken from no line. And if the amount exceeds what the envelope holds, according to your movements and your last calibration, you are asked to "),
-  b('confirm'), t(" — never prevented, since selling more than the amount invested is normal when the asset has gained value."),
-]));
-children.push(h3('Selling a line'));
-children.push(p([
-  t("The "), ui('Sell a line…'),
-  t(" button sells one specific position without retyping anything. It lists what remains invested in the envelope, grouped by "), b('note and asset type'),
+  t("It takes over what you typed in the form and asks "), b('what you are selling'),
+  t(". The "), ui('Line sold'), t(" list shows what remains invested in the envelope, grouped by "), b('note and asset type'),
   t(": two assets bought by the same recurring movement are two lines, which you can sell separately, in full or in part."),
 ]));
-children.push(step("Choose the line. The amount offered is what remains invested in it; change it for a partial sale.", 22));
-children.push(step("Enter the fees, if any, and the date.", 22));
-children.push(step([t("Leave "), ui('Keep the proceeds as cash'), t(" ticked for a switch (you then record the purchase, paid with that cash), or untick it if the money leaves the envelope.")], 22));
-children.push(p("The sale takes the note and asset type of the line: it is taken from that line only."));
+children.push(step("Choose the line, or “Other…” for an asset that is not listed: the window then shows the asset type sold, or several types with their split if you tick “Multiple asset types”.", 22));
+children.push(step("Enter the amount and the date.", 22));
+children.push(step([t("Enter the fees, as a percentage or in euros, and their direction. "), b('Fees deducted'), t(": the amount typed is what is sold, you receive that amount minus the fees. "), b('Fees added'), t(": the amount typed is what you receive, the fees are sold on top.")], 22));
+children.push(p("Below the fees, a summary shows what is taken from the assets, the fees and what you receive; for a line, it recalls the amount invested and what will be left after the sale, recomputed as you type."));
+children.push(p([
+  t("If the amount exceeds what remains invested in the line, or what the envelope holds according to your movements and your last calibration, you are asked to "),
+  b('confirm'), t(" — never prevented, since selling more than the amount invested is normal when the asset has gained value. The envelopes of a simulation behave the same way."),
+]));
 children.push(gap(100));
 children.push(...figure('5.4', 'The withdrawal confirmation window',
   "the window with its two options — “Keep as Cash” in blue and “Withdraw” in red — and their descriptions."));

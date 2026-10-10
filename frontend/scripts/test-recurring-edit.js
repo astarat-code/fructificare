@@ -47,7 +47,7 @@ const stubs = `
 `;
 const charger = () => new Function('VraieDate',
   `${horloge}\n${stubs}\n${lib('systemLanguage.js')}\n${lib('peaCap.js')}\n${lib('transactionFees.js')}\n${service}
-   return { setData, getData, getPortfolios, createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, syncRegularMovements };`,
+   return { setData, getData, getPortfolios, createTransaction, createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, syncRegularMovements, getRecurringOverdraws, confirmRecurringOverdraw };`,
 )(Date);
 
 console.debug = () => {}; // le service détaille chaque échéance en mode développement
@@ -160,6 +160,38 @@ const parDate = (ds, rm) => {
   const { ds, rm } = nouveau();
   check('décompte — échéances à partir de juillet', ds.countRecurringOccurrencesFrom(rm.id, '2026-07-01'), 4);
   check('décompte — tout l\'historique', ds.countRecurringOccurrencesFrom(rm.id, null), 10);
+}
+
+// 8. Retrait récurrent qui dépasse le contenu de l'enveloppe : la série s'arrête à
+//    l'échéance fautive et attend la décision de l'utilisateur.
+{
+  const ds = charger();
+  ds.setData({ portfolios: [{ id: 'p1', name: 'CTO', type: 'CTO', annual_fees_pct: 0 }], transactions: [] });
+  ds.createTransaction('p1', { type: 'deposit', date: '2026-01-02', amount: 1000, fees_pct: 0, asset_type: 'action' });
+  // 400 € par mois à partir de juillet : juillet et août passent (800 €), septembre non.
+  const rm = ds.createRegularMovement({ portfolio_id: 'p1', type: 'withdrawal', amount: 400, start_date: '2026-07-01', recurrence: 'monthly', asset_types: ['action'], note: 'Rente' });
+  check('retrait récurrent — échéances possibles appliquées', parDate(ds, rm), '07:-400 08:-400');
+  const attente = ds.getRecurringOverdraws();
+  check('retrait récurrent — mise en attente à la première échéance impossible',
+    attente.map(a => [a.date, a.amount, a.disponible, a.portfolio]), [['2026-09-01', 400, 200, 'CTO']]);
+  ds.syncRegularMovements();
+  check('retrait récurrent — rien de plus sans confirmation', parDate(ds, rm), '07:-400 08:-400');
+  // Un versement rend l'échéance possible : l'attente disparaît d'elle-même.
+  const ds2 = charger();
+  ds2.setData({ portfolios: [{ id: 'p1', name: 'CTO', type: 'CTO', annual_fees_pct: 0 }], transactions: [] });
+  ds2.createTransaction('p1', { type: 'deposit', date: '2026-01-02', amount: 1000, fees_pct: 0, asset_type: 'action' });
+  const rm2 = ds2.createRegularMovement({ portfolio_id: 'p1', type: 'withdrawal', amount: 400, start_date: '2026-07-01', recurrence: 'monthly', asset_types: ['action'] });
+  ds2.createTransaction('p1', { type: 'deposit', date: '2026-08-15', amount: 5000, fees_pct: 0, asset_type: 'action' });
+  ds2.syncRegularMovements();
+  check('retrait récurrent — repris après un versement', parDate(ds2, rm2), '07:-400 08:-400 09:-400 10:-400');
+  check('retrait récurrent — plus d\'attente après un versement', ds2.getRecurringOverdraws().length, 0);
+  // Confirmation : la série reprend, et ne redemande plus.
+  ds.confirmRecurringOverdraw(rm.id);
+  check('retrait récurrent — repris après confirmation', parDate(ds, rm), '07:-400 08:-400 09:-400 10:-400');
+  check('retrait récurrent — plus d\'attente après confirmation', ds.getRecurringOverdraws().length, 0);
+  // Changer le montant annule la confirmation.
+  ds.updateRegularMovement(rm.id, { amount: 500 });
+  check('retrait récurrent — la confirmation ne survit pas à un changement de montant', ds.getData().regular_movements[0].allow_overdraw, false);
 }
 
 if (failures) { console.log(`\n${failures} vérification(s) en échec.`); process.exit(1); }
