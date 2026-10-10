@@ -46,14 +46,17 @@ const fmtEur = (v) => new Intl.NumberFormat("fr-FR", { style: "currency", curren
 
 // État de la demande de phrase secrète (voir PassphraseDialog).
 const EMPTY_PASSPHRASE_STATE = { open: false, error: null, busy: false, resolve: null };
-// Consentement a adopter la phrase secrete d'un fichier importe (voir storageService).
-const EMPTY_ADOPTION_STATE = { open: false, resolve: null };
+// Avertissement : l'import d'un fichier chiffré a activé le chiffrement (voir storageService).
+const EMPTY_ADOPTION_STATE = { open: false };
+// Changement de phrase proposé depuis cet avertissement.
+const EMPTY_CHANGEMENT_STATE = { open: false, error: null, busy: false };
 
 function App() {
   // Compteur pour forcer le rafraîchissement des composants après import
   const [refreshKey, setRefreshKey] = useState(0);
   const [passphrase, setPassphrase] = useState(EMPTY_PASSPHRASE_STATE);
   const [adoption, setAdoption] = useState(EMPTY_ADOPTION_STATE);
+  const [changement, setChangement] = useState(EMPTY_CHANGEMENT_STATE);
 
   // Rattrapage des mouvements récurrents (démarrage + import JSON)
   const [catchUpReport, setCatchUpReport] = useState(null);
@@ -110,14 +113,11 @@ function App() {
       () => setPassphrase(EMPTY_PASSPHRASE_STATE),
     );
 
-    // Un fichier IMPORTÉ qui vient d'être déchiffré propose sa phrase secrète pour
-    // protéger les sauvegardes locales. C'est légitime quand on restaure sa propre
-    // sauvegarde sur une nouvelle machine ; ça ne l'est pas quand le fichier vient
-    // d'un tiers, qui connaîtrait alors la phrase protégeant tout ce qui suit.
-    // On demande donc, au lieu d'adopter en silence.
-    storageService.setKeyAdoptionConfirm(
-      () => new Promise((resolve) => { setAdoption({ open: true, resolve }); }),
-    );
+    // L'import d'une sauvegarde chiffrée active le chiffrement avec la phrase de ce
+    // fichier. C'est ce qu'on attend en restaurant sa propre sauvegarde ; si le fichier
+    // vient d'un tiers, celui-ci connaît la phrase. On prévient donc l'utilisateur et on
+    // lui propose d'en changer.
+    storageService.setKeyAdoptionNotice(() => setAdoption({ open: true }));
 
     // ── Chargement de la sauvegarde la plus récente (Tauri/FSA) ──
     // Lancé IMMÉDIATEMENT (pas en requestIdleCallback) pour afficher les données au
@@ -208,34 +208,47 @@ function App() {
             setPassphrase(EMPTY_PASSPHRASE_STATE);
           }}
         />
-        {/* Adoption de la phrase d'un fichier importé — voir setKeyAdoptionConfirm. */}
+        {/* Chiffrement activé par l'import d'un fichier chiffré — voir setKeyAdoptionNotice. */}
         <ConfirmDialog
           open={adoption.open}
-          danger
-          title={cuEn
-            ? "Use this passphrase for your own backups?"
-            : "Utiliser cette phrase pour vos propres sauvegardes ?"}
+          title={cuEn ? "Encryption has been turned on" : "Le chiffrement a été activé"}
           description={cuEn
-            ? "This file was encrypted by whoever created it. If you accept, your own "
-              + "backups will from now on be protected by this passphrase and this salt — "
-              + "which that person knows.\n\n"
-              + "Accept only if this file is YOUR backup, for example restored from a USB "
-              + "drive onto a new computer.\n\n"
-              + "If you decline, the file is still imported and readable; your backups simply "
-              + "keep their current protection. You can set your own passphrase in "
-              + "Settings › Security."
-            : "Ce fichier a été chiffré par la personne qui l'a créé. Si vous acceptez, "
-              + "vos propres sauvegardes seront désormais protégées par cette phrase et ce sel "
-              + "— que cette personne connaît.\n\n"
-              + "N'acceptez que s'il s'agit de VOTRE sauvegarde, par exemple restaurée depuis "
-              + "une clé USB sur un nouvel ordinateur.\n\n"
-              + "Si vous refusez, le fichier est tout de même importé et lisible ; vos sauvegardes "
-              + "gardent simplement leur protection actuelle. Vous pourrez choisir votre propre "
-              + "phrase dans Paramètres › Sécurité."}
-          confirmLabel={cuEn ? "Adopt this passphrase" : "Adopter cette phrase"}
-          cancelLabel={cuEn ? "No, import only" : "Non, importer seulement"}
-          onConfirm={() => { adoption.resolve?.(true); setAdoption(EMPTY_ADOPTION_STATE); }}
-          onCancel={() => { adoption.resolve?.(false); setAdoption(EMPTY_ADOPTION_STATE); }}
+            ? "The backup you imported is encrypted. Your backups are now encrypted too, "
+              + "with the passphrase of that file: you will be asked for it each time the "
+              + "application starts.\n\n"
+              + "If this file is your own backup, there is nothing to do.\n\n"
+              + "If someone else gave it to you, that person knows the passphrase: choose "
+              + "your own now. You can also do it later in File › Data folder & encryption."
+            : "La sauvegarde importée est chiffrée. Vos sauvegardes le sont désormais aussi, "
+              + "avec la phrase secrète de ce fichier : elle vous sera demandée à chaque "
+              + "démarrage de l'application.\n\n"
+              + "S'il s'agit de votre propre sauvegarde, il n'y a rien à faire.\n\n"
+              + "Si ce fichier vous a été transmis par quelqu'un d'autre, cette personne connaît "
+              + "la phrase : choisissez la vôtre maintenant. Vous pourrez aussi le faire plus tard "
+              + "dans Fichier › Dossier des données et chiffrement."}
+          confirmLabel={cuEn ? "Change the passphrase" : "Changer la phrase"}
+          cancelLabel={cuEn ? "Keep this passphrase" : "Conserver cette phrase"}
+          onConfirm={() => { setAdoption(EMPTY_ADOPTION_STATE); setChangement({ open: true, error: null, busy: false }); }}
+          onCancel={() => setAdoption(EMPTY_ADOPTION_STATE)}
+        />
+        <PassphraseDialog
+          open={changement.open}
+          mode="change"
+          error={changement.error}
+          busy={changement.busy}
+          onSubmit={async ({ courante, nouvelle }) => {
+            setChangement((c) => ({ ...c, busy: true, error: null }));
+            const res = await storageService.changePassphrase(
+              courante, nouvelle, () => JSON.stringify(dataService.buildExportPayload(), null, 2),
+            );
+            if (!res.ok) {
+              setChangement({ open: true, busy: false, error: res.error || (cuEn ? "Change failed." : "Échec du changement.") });
+              return;
+            }
+            setChangement(EMPTY_CHANGEMENT_STATE);
+            toast.success(cuEn ? "Passphrase changed." : "Phrase secrète changée.");
+          }}
+          onCancel={() => setChangement(EMPTY_CHANGEMENT_STATE)}
         />
         <BrowserRouter>
           {/* Orchestrateur d'animations gamification (headless) */}

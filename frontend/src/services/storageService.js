@@ -29,7 +29,7 @@
  * written goes through _serialize() and everything read through _deserialize() — that is
  * the single gateway, there is no write path that would bypass encryption.
  *   storageService.setPassphrasePrompt(fn)  → void  (the interface supplies the prompt)
- *   storageService.setKeyAdoptionConfirm(fn) → void  (consent to adopt the passphrase of
+ *   storageService.setKeyAdoptionNotice(fn) → void  (told when an import adopted the passphrase of
  *                                                    an imported file)
  *   storageService.enableEncryption(p, fn)  → Promise<{ok, purged}>
  *   storageService.disableEncryption(p, fn) → Promise<{ok}>  (requires the current passphrase)
@@ -88,7 +88,8 @@ const _crypto = {
   salt:    null,    // Uint8Array associe a `key`
   prompt:  null,    // fn(erreurPrecedente) => Promise<string|null>, fournie par l'interface
   dismiss: null,    // fn() => void, ferme la demande une fois l'operation terminee
-  confirmAdoption: null, // fn() => Promise<boolean>, voir _deserialize
+  adoptionNotice: null,  // fn() => void, voir _deserialize
+  purgeApresEcriture: false, // supprimer les sauvegardes en clair après la prochaine écriture chiffrée
 };
 
 // ── Détection du mode ──────────────────────────────────────────────────────────
@@ -467,35 +468,30 @@ async function _deserialize(text, origine = 'locale') {
         const plain = await cryptoService.decryptEnvelope(parsed, key);
         // ── Adoption de la clé pour la session ──────────────────────────────────
         //
-        // Deux conditions, et la seconde a été ajoutée après un audit.
+        // La session ne doit pas déjà avoir une clé. Sinon le fichier lu vient
+        // d'ailleurs, et changer la clé courante verrouillerait les prochains
+        // enregistrements avec une phrase que l'utilisateur ne considère pas comme
+        // la sienne.
         //
-        // 1. La session ne doit pas déjà avoir une clé. Sinon le fichier lu vient
-        //    d'ailleurs, et changer la clé courante verrouillerait les prochains
-        //    enregistrements avec une phrase que l'utilisateur ne considère pas
-        //    comme la sienne.
-        //
-        // 2. Si le fichier a été IMPORTÉ, il faut le consentement explicite de
-        //    l'utilisateur. Adopter en silence était une vraie faille : on vous
-        //    transmet « mon portefeuille d'exemple, la phrase est demo1234 », vous
-        //    l'importez, et toutes vos sauvegardes suivantes sont désormais chiffrées
-        //    avec une clé et un sel que l'auteur du fichier connaît. Il lui suffit
-        //    ensuite de mettre la main sur un seul de vos fichiers.
-        //    Un fichier du dossier de l'application ('locale') est le vôtre : pas de
-        //    question à poser. En l'absence de fonction de confirmation, on n'adopte
-        //    PAS — se tromper dans ce sens laisse des données en clair, se tromper
-        //    dans l'autre remet la clé à un tiers.
+        // Un fichier IMPORTÉ active le chiffrement lui aussi : qui restaure sa
+        // sauvegarde chiffrée sur un nouvel ordinateur s'attend à rester protégé, et
+        // retomber en clair sans le dire serait le pire des deux défauts. Le risque
+        // inverse existe — « voici mon portefeuille d'exemple, la phrase est
+        // demo1234 » : les sauvegardes suivantes sont alors chiffrées avec une phrase
+        // et un sel que l'auteur du fichier connaît. L'interface en est donc avertie
+        // (setKeyAdoptionNotice) et propose aussitôt de changer de phrase, ce qui
+        // tire un nouveau sel.
         if (!_crypto.key) {
-          let adopter = true;
+          _crypto.key = key;
+          _crypto.salt = salt;
+          _setFlag(true);
           if (origine !== 'locale') {
-            // La saisie est terminée : on referme avant de poser la question suivante,
-            // sinon les deux boîtes se superposent.
+            // Les sauvegardes en clair déjà présentes seront supprimées dès qu'une
+            // sauvegarde chiffrée aura été écrite (voir save) : pas avant, pour ne
+            // jamais rester sans aucune copie.
+            _crypto.purgeApresEcriture = true;
             _crypto.dismiss?.();
-            adopter = _crypto.confirmAdoption ? await _crypto.confirmAdoption() : false;
-          }
-          if (adopter) {
-            _crypto.key = key;
-            _crypto.salt = salt;
-            _setFlag(true);
+            _crypto.adoptionNotice?.();
           }
         }
         return JSON.parse(plain);
@@ -536,6 +532,10 @@ async function save(jsonString) {
       // dit exactement ce qui part sur le disque, sans dépendre d'un état qui aurait pu
       // changer entre-temps.
       filePath = await _tauriSave(payload, payload !== jsonString);
+      if (_crypto.purgeApresEcriture && payload !== jsonString) {
+        _crypto.purgeApresEcriture = false;
+        await _purgePlaintextBackups();
+      }
     } else if (_state.mode === 'fsa') {
       await _fsaSave(payload);
     } else {
@@ -653,17 +653,14 @@ function setPassphrasePrompt(ask, dismiss = null) {
 }
 
 /**
- * Enregistre la fonction qui demande à l'utilisateur s'il accepte d'adopter, pour ses
- * propres sauvegardes, la phrase secrète d'un fichier qu'il vient d'importer.
+ * Enregistre la fonction appelée quand l'import d'un fichier chiffré vient d'activer le
+ * chiffrement avec la phrase secrète de ce fichier (voir _deserialize). L'interface s'en
+ * sert pour prévenir l'utilisateur et lui proposer de choisir sa propre phrase.
  *
- * Voir _deserialize : sans ce consentement, importer la sauvegarde chiffrée d'un tiers
- * confiait la protection de toutes les sauvegardes suivantes à une phrase connue de ce
- * tiers. Tant qu'aucune fonction n'est fournie, la réponse est NON.
- *
- * @param {null | (() => Promise<boolean>)} confirm
+ * @param {null | (() => void)} notice
  */
-function setKeyAdoptionConfirm(confirm) {
-  _crypto.confirmAdoption = confirm;
+function setKeyAdoptionNotice(notice) {
+  _crypto.adoptionNotice = notice;
 }
 
 function isEncryptionEnabled() {
@@ -887,9 +884,9 @@ async function serializeForExport(jsonString) {
 /**
  * Lit un fichier importé : JSON simple ou enveloppe chiffrée.
  *
- * Marqué 'importee' : ce fichier peut venir de n'importe qui, donc sa phrase secrète
- * ne devient celle de l'utilisateur qu'après confirmation explicite (voir _deserialize
- * et setKeyAdoptionConfirm).
+ * Marqué 'importee' : si la session n'est pas déjà chiffrée, la phrase secrète de ce
+ * fichier devient celle de l'utilisateur, qui en est averti (voir _deserialize et
+ * setKeyAdoptionNotice). Un fichier en clair ne change rien à l'état du chiffrement.
  */
 async function deserializeImported(text) {
   return _deserialize(text, 'importee');
@@ -934,7 +931,7 @@ const storageService = {
   subscribe,
   clearSaveHandle,
   setPassphrasePrompt,
-  setKeyAdoptionConfirm,
+  setKeyAdoptionNotice,
   isEncryptionEnabled,
   isUnlocked,
   syncEncryptionFlag,
