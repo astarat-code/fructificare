@@ -47,7 +47,7 @@ const stubs = `
 `;
 const charger = () => new Function('VraieDate',
   `${horloge}\n${stubs}\n${lib('systemLanguage.js')}\n${lib('peaCap.js')}\n${lib('transactionFees.js')}\n${service}
-   return { setData, getData, getPortfolios, createTransaction, createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, syncRegularMovements, getRecurringOverdraws, confirmRecurringOverdraw };`,
+   return { setData, getData, getPortfolios, createTransaction, createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, syncRegularMovements, getRecurringOverdraws, confirmRecurringOverdraw, importSimulationsFromJSON, syncSimulationRegularMovements, getSimulationRecurringOverdraws, confirmSimulationRecurringOverdraw, getSimulation };`,
 )(Date);
 
 console.debug = () => {}; // le service détaille chaque échéance en mode développement
@@ -192,6 +192,24 @@ const parDate = (ds, rm) => {
   // Changer le montant annule la confirmation.
   ds.updateRegularMovement(rm.id, { amount: 500 });
   check('retrait récurrent — la confirmation ne survit pas à un changement de montant', ds.getData().regular_movements[0].allow_overdraw, false);
+}
+
+// 9. Même règle dans une simulation.
+{
+  const ds = charger();
+  ds.setData({ portfolios: [], transactions: [] });
+  ds.importSimulationsFromJSON({ simulations: [{ id: 's1', name: 'Sim',
+    portfolios: [{ id: 'sp1', name: 'CTO simulé', type: 'CTO', balance: 1000, total_deposits: 1000, total_withdrawals: 0, total_fees: 0 }],
+    transactions: [], calibrations: [], movement_templates: [],
+    regular_movements: [{ id: 'srm1', portfolio_id: 'sp1', type: 'withdrawal', amount: 400, start_date: '2026-07-01', recurrence: 'monthly',
+      asset_types: ['action'], asset_allocations: [], status: 'active' }] }] });
+  ds.syncSimulationRegularMovements('s1');
+  const retraits = () => ds.getSimulation('s1').transactions.filter(t => t.from_recurring_id === 'srm1').map(t => t.date.slice(5, 7)).sort().join(' ');
+  check('simulation — échéances possibles appliquées', retraits(), '07 08');
+  check('simulation — mise en attente', ds.getSimulationRecurringOverdraws('s1').map(a => [a.date, a.disponible, a.portfolio]), [['2026-09-01', 200, 'CTO simulé']]);
+  ds.confirmSimulationRecurringOverdraw('s1', 'srm1');
+  check('simulation — repris après confirmation', retraits(), '07 08 09 10');
+  check('simulation — plus d\'attente', ds.getSimulationRecurringOverdraws('s1').length, 0);
 }
 
 if (failures) { console.log(`\n${failures} vérification(s) en échec.`); process.exit(1); }

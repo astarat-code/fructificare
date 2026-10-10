@@ -32,6 +32,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   assets apart, and a sale larger than what the line or the envelope holds asks for
   confirmation. A recurring withdrawal that exceeds what its envelope holds is no longer
   recorded: the series is put on hold and you choose to keep applying it or to stop it.
+  The same applies to the recurring movements of a simulation.
 - **Windows installer: for you only, or for every user** of the computer.
 - The version number is shown under the application name in the left menu.
 
@@ -61,6 +62,7 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - The same reminder notification piled up day after day.
 - Health score: the rating overlapped the ends of the gauge.
 - Avatar: the chapter name is no longer repeated next to the avatar's name.
+- Recurring movements: the stop and delete buttons were invisible on some envelope colours.
 
 ## [1.2.0] — 2026-09-26
 

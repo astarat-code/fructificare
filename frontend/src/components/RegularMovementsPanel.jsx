@@ -39,7 +39,7 @@ import { toast } from 'sonner';
 import {
   Plus, RefreshCw, Edit2, Square, History,
   ArrowDownLeft, ArrowUpRight, Info,
-  Trash2, FileText, ChevronLeft, XCircle, X,
+  Trash2, FileText, ChevronLeft, X,
 } from 'lucide-react';
 import dataService from '../services/dataService';
 import { envTintBg, envTextColor, envMutedTextColor, envGainColor } from '../lib/utils';
@@ -1206,7 +1206,7 @@ export default function RegularMovementsPanel({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-8 w-8 text-amber-600 hover:text-amber-700"
+                                className="h-8 w-8"
                                 onClick={() => setStopConfirm(rm.id)}
                                 title={L('Arrêter ce mouvement régulier', 'Stop this regular movement')}
                               >
@@ -1265,12 +1265,12 @@ export default function RegularMovementsPanel({
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 text-rose-400 hover:text-rose-600"
+                                  className="h-8 w-8"
                                   onClick={() => setDeleteRmConfirmId(rm.id)}
                                   aria-label={L('Supprimer le mouvement récurrent', 'Delete regular movement')}
                                   title={L('Supprimer ce mouvement terminé', 'Delete this ended movement')}
                                 >
-                                  <XCircle className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
                               </>
                             )}

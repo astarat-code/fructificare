@@ -23,8 +23,10 @@ const DELAI_PREMIERE_LECTURE_MS = 4000;
  * La série est alors mise en attente à cette échéance (voir syncRegularMovements) : rien
  * n'est enregistré tant que l'utilisateur n'a pas choisi de la poursuivre ou de l'arrêter.
  * « Plus tard » la laisse en attente ; la question revient au prochain démarrage.
+ *
+ * Avec `simulationId`, la fenêtre porte sur les récurrents de cette simulation.
  */
-export default function RecurringOverdrawDialog({ onChange }) {
+export default function RecurringOverdrawDialog({ onChange, simulationId = null, untilDate = undefined, refreshKey = null }) {
   const { lang } = useLanguage();
   const L = (fr, en) => (lang === "en" ? en : fr);
   const [attente, setAttente] = useState(null);
@@ -32,10 +34,15 @@ export default function RecurringOverdrawDialog({ onChange }) {
 
   const lire = useCallback(() => {
     try {
-      const liste = dataService.getRecurringOverdraws();
+      const liste = simulationId
+        ? dataService.getSimulationRecurringOverdraws(simulationId)
+        : dataService.getRecurringOverdraws();
       setAttente(liste.find((a) => !reportes.has(a.id)) || null);
     } catch (_) { setAttente(null); }
-  }, [reportes]);
+  }, [reportes, simulationId]);
+
+  // Une simulation relit à chaque rafraîchissement de sa page (elle n'émet pas d'événement).
+  useEffect(() => { if (simulationId) lire(); }, [simulationId, refreshKey, lire]);
 
   useEffect(() => {
     const minuterie = setTimeout(lire, DELAI_PREMIERE_LECTURE_MS);
@@ -47,13 +54,15 @@ export default function RecurringOverdrawDialog({ onChange }) {
   const nom = attente.note || L("Retrait récurrent", "Recurring withdrawal");
 
   const poursuivre = () => {
-    dataService.confirmRecurringOverdraw(attente.id);
+    if (simulationId) dataService.confirmSimulationRecurringOverdraw(simulationId, attente.id, untilDate);
+    else dataService.confirmRecurringOverdraw(attente.id);
     toast.success(L("Le mouvement récurrent continue de s'appliquer.", "The recurring movement keeps being applied."));
     setAttente(null);
     onChange?.();
   };
   const arreter = () => {
-    dataService.stopRegularMovement(attente.id);
+    if (simulationId) dataService.stopSimulationRegularMovement(simulationId, attente.id);
+    else dataService.stopRegularMovement(attente.id);
     toast.success(L("Mouvement récurrent arrêté. Les retraits déjà enregistrés sont conservés.", "Recurring movement stopped. The withdrawals already recorded are kept."));
     setAttente(null);
     onChange?.();

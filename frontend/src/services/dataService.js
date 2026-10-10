@@ -2420,11 +2420,39 @@ function updateSimulationRegularMovement(simulationId, id, updates) {
     asset_allocations: updates.asset_allocations !== undefined
       ? updates.asset_allocations
       : (sim.regular_movements[idx].asset_allocations || []),
+    // Réglages modifiés : une confirmation de dépassement est à redonner.
+    allow_overdraw: false,
+    overdraw_pending: null,
   };
   updateSimulation(simulationId, { regular_movements: sim.regular_movements });
   try { syncSimulationRegularMovements(simulationId); } catch (_) {}
   return sim.regular_movements[idx];
 }
+/** Retraits récurrents d'une simulation en attente pour dépassement (voir getRecurringOverdraws). */
+function getSimulationRecurringOverdraws(simulationId) {
+  const sim = getSimulation(simulationId);
+  if (!sim) return [];
+  return (sim.regular_movements || [])
+    .filter(rm => rm.status === 'active' && rm.overdraw_pending)
+    .map(rm => ({
+      id: rm.id,
+      note: rm.note || '',
+      portfolio: ((sim.portfolios || []).find(p => p.id === rm.portfolio_id) || {}).name || '',
+      ...rm.overdraw_pending,
+    }));
+}
+
+/** Confirmation de poursuite d'un retrait récurrent de simulation (voir confirmRecurringOverdraw). */
+function confirmSimulationRecurringOverdraw(simulationId, id, untilDate) {
+  const sim = getSimulation(simulationId);
+  const rm = sim && (sim.regular_movements || []).find(r => r.id === id);
+  if (!rm) return;
+  rm.allow_overdraw = true;
+  rm.overdraw_pending = null;
+  updateSimulation(simulationId, { regular_movements: sim.regular_movements });
+  try { syncSimulationRegularMovements(simulationId, untilDate); } catch (_) {}
+}
+
 function stopSimulationRegularMovement(simulationId, id) {
   const todayStr = new Date().toISOString().split('T')[0];
   return updateSimulationRegularMovement(simulationId, id, { end_date: todayStr, status: 'stopped' });
@@ -2494,6 +2522,8 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
         .filter(t => t.from_recurring_id === rm.id || (rm.original_id && t.from_recurring_id === rm.original_id))
         .map(t => t.date));
       const toApply = allDates.filter(d => !existing.has(d));
+      // Attente réévaluée à chaque passage, comme sur le tableau de bord.
+      if (rm.overdraw_pending) { rm.overdraw_pending = null; changed = true; }
       if (!toApply.length) continue;
       const portfolio = (sim.portfolios || []).find(p => p.id === rm.portfolio_id);
       if (!portfolio) continue;
@@ -2505,6 +2535,19 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
       const annualFeeInput = parseFloat(rm.annual_fees_pct) || 0;
       for (const date of toApply) {
         const amount   = parseFloat(rm.amount) || 0;
+        // Même règle que sur le tableau de bord (voir syncRegularMovements) : un retrait
+        // récurrent qui dépasse le contenu de l'enveloppe simulée met la série en attente.
+        // Le contenu est celui des mouvements et de la dernière calibration : le rendement
+        // projeté n'y est pas compté.
+        if (rm.type === 'withdrawal' && !rm.allow_overdraw) {
+          const cals = (sim.calibrations || []).filter(c => c.portfolio_id === rm.portfolio_id).sort((a, b) => a.date.localeCompare(b.date));
+          const controle = checkWithdrawal(rm.portfolio_id, amount, null, { balance: portfolio.balance, calibrations: cals, transactions: [] });
+          if (controle.depasse) {
+            rm.overdraw_pending = { date, amount, disponible: Math.round(controle.disponible * 100) / 100 };
+            changed = true;
+            break;
+          }
+        }
         const totalFee = feesType === 'euro'
           ? Math.min(feeInput, amount)
           : Math.round(amount * feeInput / 100 * 100) / 100;
@@ -2557,7 +2600,7 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
       }
     } catch (e) { console.warn('[SimRecurring] sync error', rm.id, e); }
   }
-  if (applied > 0 || changed) updateSimulation(simulationId, { portfolios: sim.portfolios, transactions: sim.transactions });
+  if (applied > 0 || changed) updateSimulation(simulationId, { portfolios: sim.portfolios, transactions: sim.transactions, regular_movements: sim.regular_movements });
   return applied + (changed ? 1 : 0);
 }
 
@@ -5368,6 +5411,7 @@ const dataService = {
   getSimulationMovementTemplates, createSimulationMovementTemplate, updateSimulationMovementTemplate, deleteSimulationMovementTemplate,
   getSimulationRegularMovements, createSimulationRegularMovement, updateSimulationRegularMovement,
   stopSimulationRegularMovement, deleteSimulationRegularMovement, syncSimulationRegularMovements,
+  getSimulationRecurringOverdraws, confirmSimulationRecurringOverdraw,
   // Nouvelles fonctions financières
   fv, calculateCompoundInterest, calculateTaxation,
   // Types d'actifs personnalisés

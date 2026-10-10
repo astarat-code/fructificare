@@ -116,7 +116,7 @@ children.push(p([
   t("Quand une échéance de retrait dépasse ce que contient l'enveloppe, d'après vos mouvements et votre dernière calibration, Fructificare "), b("ne l'enregistre pas"),
   t(" : la série est mise en attente à cette échéance et une fenêtre vous demande de choisir. "), ui("Continuer à l'appliquer"),
   t(" enregistre l'échéance et les suivantes, sans redemander tant que vous ne modifiez pas la série ; "), ui('Arrêter ce mouvement'),
-  t(" clôt la série en conservant les retraits déjà enregistrés ; "), ui('Plus tard'), t(" laisse la série en attente, et la question revient au prochain démarrage. Un versement qui rend le retrait possible lève l'attente de lui-même."),
+  t(" clôt la série en conservant les retraits déjà enregistrés ; "), ui('Plus tard'), t(" laisse la série en attente, et la question revient au prochain démarrage. Un versement qui rend le retrait possible lève l'attente de lui-même. La même règle vaut pour les récurrents d'une simulation, où le rendement projeté n'est pas compté dans le contenu de l'enveloppe."),
 ]));
 
 children.push(h3('Arrêter une série'));
