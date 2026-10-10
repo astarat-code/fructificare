@@ -16,6 +16,8 @@ import { getRecentFiles, addRecentFile, removeRecentFile, clearRecentFiles } fro
 import { openManual } from "../lib/openManual";
 import ConfirmDialog from "./ConfirmDialog";
 import DataFolderDialog from "./DataFolderDialog";
+import UpdateDialog from "./UpdateDialog";
+import { requestManualCheck } from "../lib/updater";
 import { getDataFolderInfo } from "../lib/dataFolder";
 import { toast } from "sonner";
 import gamificationService from "../services/gamificationService";
@@ -304,6 +306,7 @@ export default function Layout({ children }) {
             case "data-folder": setDataFolder({ open: true, mode: "manage" }); break;
             case "settings": navigate("/settings"); break;
             case "glossary": navigate("/glossaire"); break;
+            case "check-update": requestManualCheck(); break;
             case "theme-dark":
               setTheme("dark");  try { dataService.saveAppPreferences({ theme: "dark" }); } catch (_) {} break;
             case "theme-light":
@@ -669,6 +672,7 @@ export default function Layout({ children }) {
       />
 
       {/* « Nouveau » (menu natif) : vider l'espace de travail — voir le gestionnaire menu-action. */}
+      <UpdateDialog />
       <DataFolderDialog
         open={dataFolder.open}
         mode={dataFolder.mode}

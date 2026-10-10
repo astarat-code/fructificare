@@ -25,6 +25,14 @@
 #      d'installation de dépendances tierces — et `cargo build`. Ils sont en lecture
 #      seule. Seul `publier`, qui se contente de télécharger des artefacts déjà construits,
 #      porte `contents: write`. Une dépendance compromise n'a donc aucun jeton à voler.
+#
+#   3. LA CLÉ DE SIGNATURE DES MISES À JOUR EST ISOLÉE DE LA MÊME FAÇON.
+#      L'application n'installe une mise à jour que si elle est signée par cette clé :
+#      qui la détient peut faire exécuter son programme chez tous les utilisateurs. Elle
+#      n'est donc présente que dans le job `signer`, qui ne compile rien, n'exécute aucun
+#      script d'installation, n'a qu'un jeton en lecture, et ne lance qu'un programme :
+#      le binaire de la CLI Tauri, dans la version et avec l'empreinte du fichier de
+#      verrouillage. Les jobs de compilation ne la voient jamais.
 name: Release
 
 on:
@@ -293,15 +301,76 @@ jobs:
           name: fructificare-macos
           path: frontend/src-tauri/target/universal-apple-darwin/release/artifacts/*
 
-  # Job séparé, et c'est tout l'intérêt : il ne compile rien, n'installe aucune
-  # dépendance, n'exécute aucun code tiers. Il télécharge les artefacts des jobs
-  # précédents et les publie. C'est le seul endroit du dépôt où un jeton d'écriture existe.
-  publier:
+  # Signe les installateurs avec la clé des mises à jour et écrit latest.json, le fichier
+  # que l'application lit pour savoir si une version plus récente existe. Voir la règle 3
+  # en tête de fichier : c'est le seul job qui voit cette clé.
+  signer:
     needs: [windows, linux, macos]
     # macOS est expérimental : son échec ne bloque pas la publication de Windows et Linux.
     if: >-
       !cancelled() && startsWith(github.ref, 'refs/tags/')
       && needs.windows.result == 'success' && needs.linux.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: fructificare-*
+          merge-multiple: true
+          path: artifacts
+
+      # Versions et empreintes du fichier de verrouillage, aucun script d'installation.
+      - name: Installer la CLI Tauri
+        working-directory: frontend
+        run: npm ci --ignore-scripts
+
+      # La clé n'est exposée qu'à cette étape. Un fichier .sig est écrit à côté de chaque
+      # installateur ; seul son contenu est repris dans latest.json.
+      - name: Signer les installateurs
+        working-directory: frontend
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error::Secret TAURI_SIGNING_PRIVATE_KEY absent : les mises à jour ne peuvent pas être signées."
+            exit 1
+          fi
+          shopt -s nullglob
+          for fichier in ../artifacts/*_x64-setup.exe ../artifacts/*.AppImage ../artifacts/*.dmg; do
+            npx tauri signer sign "$fichier"
+          done
+
+      - name: Écrire latest.json
+        working-directory: frontend
+        run: |
+          node scripts/make-latest-json.js ../artifacts "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY"
+          cat ../artifacts/latest.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fructificare-updater
+          path: artifacts/latest.json
+
+  # Job séparé, et c'est tout l'intérêt : il ne compile rien, n'installe aucune
+  # dépendance, n'exécute aucun code tiers. Il télécharge les artefacts des jobs
+  # précédents et les publie. C'est le seul endroit du dépôt où un jeton d'écriture existe.
+  publier:
+    needs: [windows, linux, macos, signer]
+    # macOS est expérimental : son échec ne bloque pas la publication de Windows et Linux.
+    if: >-
+      !cancelled() && startsWith(github.ref, 'refs/tags/')
+      && needs.windows.result == 'success' && needs.linux.result == 'success'
+      && needs.signer.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write

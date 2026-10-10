@@ -63,5 +63,13 @@
         "section": "utils"
       }
     }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "CLE_PUBLIQUE_A_RENSEIGNER",
+      "endpoints": [
+        "https://github.com/astarat-code/fructificare/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

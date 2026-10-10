@@ -8,6 +8,7 @@
 //! navigation — lives on the React side, where the application's state is).
 
 mod dossier_donnees;
+mod mise_a_jour;
 
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder, PredefinedMenuItem, SubmenuBuilder};
 use tauri::{AppHandle, Emitter, Runtime, Url, WebviewWindowBuilder};
@@ -126,6 +127,11 @@ fn construire_menu<R: Runtime>(handle: &AppHandle<R>, anglais: bool) -> tauri::R
     let help = SubmenuBuilder::new(handle, l("Aide", "Help"))
         .item(&MenuItemBuilder::with_id("manual", l("Manuel d'utilisation", "User manual")).build(handle)?)
         .item(&MenuItemBuilder::with_id("glossary", l("Glossaire", "Glossary")).build(handle)?)
+        .separator()
+        .item(
+            &MenuItemBuilder::with_id("check-update", l("Rechercher une mise à jour…", "Check for updates…"))
+                .build(handle)?,
+        )
         .build()?;
 
     #[allow(unused_mut)]
@@ -165,6 +171,8 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        // Seul accès réseau de l'application, et il reste côté natif : voir mise_a_jour.rs.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         // Français au démarrage ; le frontend retraduit dès que la langue du fichier est connue.
         .menu(|handle| construire_menu(handle, false))
         .manage(dossier_donnees::Choix::default())
@@ -175,6 +183,9 @@ pub fn run() {
             dossier_donnees::data_folder_apply,
             dossier_donnees::data_folder_open,
             dossier_donnees::document_open,
+            mise_a_jour::update_check,
+            mise_a_jour::update_install,
+            mise_a_jour::update_open_page,
         ])
         .on_menu_event(|app, event| {
             // Relaie l'identifiant de l'item cliqué au frontend.
