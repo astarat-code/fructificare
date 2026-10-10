@@ -77,6 +77,13 @@ Comparez-la avec `SHA256SUMS.txt`, publié à côté de chaque version. Ces empr
 calculées par la CI publique, dont le journal de build est consultable — pas sur la machine
 du mainteneur.
 
+**Désinstaller.** Windows : *Paramètres → Applications → Applications installées →
+Fructificare → Désinstaller* (le désinstallateur propose de supprimer aussi les données de
+l'application). Debian/Ubuntu : `sudo apt remove fructificare`. AppImage : supprimez le
+fichier. macOS : glissez Fructificare du dossier Applications vers la corbeille. Un dossier
+des données que vous avez choisi vous-même n'est jamais supprimé : effacez-le à la main si
+vous n'en avez plus besoin.
+
 ---
 
 ## Fonctionnalités
@@ -135,6 +142,33 @@ l'interface locale.
 
 [`docs/SECURITE.md`](docs/SECURITE.md) détaille le modèle de menace complet, ce contre quoi
 l'application ne protège pas, et la procédure de signalement d'une faille.
+
+---
+
+## Politique de signature de code (Code signing policy)
+
+Signature de code gratuite fournie par [SignPath.io](https://about.signpath.io), certificat
+par [SignPath Foundation](https://signpath.org).
+
+*État : les versions jusqu'à la 1.2.0 incluse ne sont pas signées. La signature commencera
+avec la première version publiée après l'admission du projet par SignPath Foundation.*
+
+- **Ce qui est signé.** L'installateur Windows (`Fructificare_…_x64-setup.exe`) et
+  l'exécutable seul (`Fructificare.exe`), compilés depuis ce dépôt par le workflow public
+  [`release.yml`](.github/workflows/release.yml), sur des machines hébergées par GitHub.
+  Rien de ce qui est compilé sur la machine d'un mainteneur n'est signé.
+- **Rôles de l'équipe.**
+  - Auteurs et relecteurs : [astarat-code](https://github.com/astarat-code)
+  - Approbateurs : [astarat-code](https://github.com/astarat-code)
+
+  Les contributions extérieures arrivent sous forme de pull requests, relues par un auteur
+  avant fusion ; la branche `main` n'accepte que des pull requests qui passent la CI. Chaque
+  version est approuvée individuellement avant d'être signée.
+- **Confidentialité.** Ce programme ne transfère aucune information vers d'autres systèmes
+  en réseau, sauf demande expresse de l'utilisateur ou de la personne qui l'installe ou
+  l'utilise. Fructificare fonctionne hors ligne : ni compte, ni télémétrie, ni recherche de
+  mise à jour. Le seul accès réseau a lieu à l'installation sous Windows, et seulement si le
+  moteur Microsoft WebView2 est absent : l'installateur le télécharge alors chez Microsoft.
 
 ---
 

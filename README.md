@@ -71,6 +71,12 @@ shasum -a 256 Fructificare_*.dmg                                  # macOS
 Compare it with `SHA256SUMS.txt`, published next to each release. Those fingerprints are
 computed by the public CI, whose build log anyone can read — not on a maintainer's machine.
 
+**Uninstalling.** Windows: *Settings → Apps → Installed apps → Fructificare → Uninstall* (the
+uninstaller asks whether to delete the application data as well). Debian/Ubuntu:
+`sudo apt remove fructificare`. AppImage: delete the file. macOS: drag Fructificare from
+Applications to the Trash. A data folder you chose yourself is never deleted: remove it by
+hand if you no longer need it.
+
 ---
 
 ## Features
@@ -126,6 +132,33 @@ cannot navigate outside the local interface.
 
 [`SECURITY.md`](SECURITY.md) holds the full threat model, what the software does *not*
 protect against, and how to report a vulnerability.
+
+---
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://about.signpath.io), certificate by
+[SignPath Foundation](https://signpath.org).
+
+*Status: releases up to and including 1.2.0 are not signed. Signing starts with the first
+release published once the project has been onboarded by SignPath Foundation.*
+
+- **What is signed.** The Windows installer (`Fructificare_…_x64-setup.exe`) and the
+  standalone executable (`Fructificare.exe`), built from this repository by the public
+  workflow [`release.yml`](.github/workflows/release.yml) on GitHub-hosted runners. Nothing
+  built on a maintainer's machine is ever signed.
+- **Team roles.**
+  - Committers and reviewers: [astarat-code](https://github.com/astarat-code)
+  - Approvers: [astarat-code](https://github.com/astarat-code)
+
+  Outside contributions arrive as pull requests and are reviewed by a committer before they
+  are merged; the `main` branch only accepts pull requests that pass the CI. Each release is
+  approved individually before it is signed.
+- **Privacy policy.** This program will not transfer any information to other networked
+  systems unless specifically requested by the user or the person installing or operating
+  it. Fructificare works offline: no account, no telemetry, no update check. The only
+  network access happens at installation on Windows, and only if the Microsoft WebView2
+  runtime is missing: the installer then downloads it from Microsoft.
 
 ---
 

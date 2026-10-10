@@ -339,7 +339,7 @@ jobs:
             ```
 
             and compare it with `SHA256SUMS.txt`. The fingerprints are computed by the CI, whose
-            build log is public.
+            build log is public. See the [Code signing policy](https://github.com/${{ github.repository }}#code-signing-policy).
 
             **Linux:** download the `.AppImage` (any distribution: make it executable, then run
             it; on Ubuntu 24.04 and later, install `libfuse2` first), or the `.deb` for Debian,
