@@ -22,6 +22,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   are kept as they were, and the modification log shows the date each change took effect.
 - **History: one line per multi-asset movement** — a movement spread over several assets
   is shown as a single line with its totals; clicking it lists the detail by asset.
+- **Sell a line** — on an envelope, *Sell a line…* lists what remains invested, by note and
+  asset type, and sells one of them in full or in part. Two assets bought by the same
+  recurring movement can be sold separately.
+- **Withdrawal checks** — the asset type sold is required when the envelope tells its
+  assets apart, and a withdrawal larger than what the envelope holds asks for confirmation.
 - **Windows installer: for you only, or for every user** of the computer.
 - The version number is shown under the application name in the left menu.
 
@@ -36,6 +41,9 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   offers to choose another passphrase. Importing a plain-text backup changes nothing.
 - The glossary moves from the Edit menu to the **Help** menu; the Edit menu now holds Cut,
   Copy, Paste and Select All.
+- **Calibrations** — only one is kept per envelope and per day; a position entered from a
+  multi-asset template is split by that template instead of landing in "Other"; a breakdown
+  that does not add up to the total is flagged and applied pro rata.
 - The asset allocation based on deposits is computed envelope by envelope: an asset
   oversold in one envelope no longer reduces the same asset held in another.
 

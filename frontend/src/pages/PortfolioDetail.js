@@ -12,6 +12,7 @@ import CalibrationModal from "../components/CalibrationModal";
 import { DIETZ_NOTE } from "../components/ui/Disclaimer";
 import { signeFrais, montantNet } from "../lib/transactionFees";
 import { regrouperMouvements } from "../lib/movementGroups";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { versementsPea } from "../lib/peaCap";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -123,6 +124,8 @@ function PnlAssetCard({ item, label, flat = false }) {
   );
 }
 
+const ASSET_TYPES_CONNUS = [...dataService.ASSET_TYPES, 'livret_réglementé'];
+
 export default function PortfolioDetail({ dataSource = null, scope = null, portfolioId: pidProp = null, backHref = "/" } = {}) {
   // Source de données : adaptateur (simulation) ou dataService (tableau de bord, défaut).
   // Permet de réutiliser CETTE page à l'identique pour une enveloppe de simulation.
@@ -206,6 +209,11 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
 
   // Dialogue de confirmation pour les ventes (conserver en espèces ou non)
   const [withdrawalConfirmDialog, setWithdrawalConfirmDialog] = useState(false);
+  // Retrait supérieur à ce que contient l'enveloppe : confirmation demandée (jamais un blocage).
+  const [depassement, setDepassement] = useState(null); // null | { message, suite }
+  // Vente d'une ligne détenue (note + type d'actif). Hors simulation uniquement.
+  const VENTE_LIGNE_VIDE = { open: false, cle: "", amount: "", date: "", fees: "", keepInCash: true };
+  const [venteLigne, setVenteLigne] = useState(VENTE_LIGNE_VIDE);
 
   const [realYieldData, setRealYieldData] = useState(null);
   const [pnlByAsset, setPnlByAsset] = useState([]);
@@ -449,7 +457,83 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
   // Ouvre le dialogue de confirmation pour une vente
   const handleWithdrawalClick = () => {
     if (!txForm.amount || parseFloat(txForm.amount) <= 0) return toast.error(t('portfolio.amountInvalid'));
+    if (!dataSource) {
+      // Une enveloppe qui distingue ses actifs ne peut pas enregistrer une vente « de rien » :
+      // elle ne serait retirée d'aucune ligne et fausserait la répartition.
+      const typesDetenus = lignesDetenues.filter(l => l.type_resolu !== 'non_defini');
+      if (!multiAssetMode && !txForm.asset_type && typesDetenus.length > 0) {
+        return toast.error(L(
+          "Indiquez le type d'actif vendu, ou utilisez « Vendre une ligne ».",
+          'Choose the asset type sold, or use "Sell a line".',
+        ));
+      }
+      const controle = dataService.checkWithdrawal(id, parseFloat(txForm.amount), multiAssetMode ? null : (txForm.asset_type || null));
+      if (controle.depasse) {
+        setDepassement({
+          message: controle.motif === 'actif'
+            ? L(
+              "Cette enveloppe ne détient pas, d'après vos mouvements, d'actif de ce type. Le retrait sera tout de même enregistré si vous confirmez.",
+              'According to your movements, this envelope holds no asset of this type. The withdrawal will still be recorded if you confirm.',
+            )
+            : L(
+              `Ce retrait de ${fmt(parseFloat(txForm.amount))} dépasse ce que contient l'enveloppe (${fmt(controle.disponible)} d'après vos mouvements et votre dernière calibration). Confirmez seulement si ce montant est exact.`,
+              `This withdrawal of ${fmt(parseFloat(txForm.amount))} exceeds what the envelope holds (${fmt(controle.disponible)} according to your movements and your last calibration). Confirm only if the amount is right.`,
+            ),
+          suite: () => setWithdrawalConfirmDialog(true),
+        });
+        return;
+      }
+    }
     setWithdrawalConfirmDialog(true);
+  };
+
+  // ── Vente d'une ligne détenue ───────────────────────────────────────────────
+  const lignesDetenues = dataSource ? [] : dataService.getHeldLines(id);
+  const nomLigne = (l) => {
+    const type = ASSET_TYPES_CONNUS.includes(l.type_resolu) ? t(`assetTypes.${l.type_resolu}`) : (l.type_resolu === 'non_defini' ? L('Sans type', 'No type') : l.type_resolu);
+    return l.note ? `${displayNote(l.note, lang)} — ${type}` : type;
+  };
+  const ouvrirVenteLigne = () => {
+    const premiere = lignesDetenues[0];
+    setVenteLigne({ ...VENTE_LIGNE_VIDE, open: true, cle: premiere ? premiere.cle : "", amount: premiere ? String(premiere.investi) : "", date: today });
+  };
+  const enregistrerVenteLigne = (confirme = false) => {
+    const ligne = lignesDetenues.find(l => l.cle === venteLigne.cle);
+    const montant = parseFloat(String(venteLigne.amount).replace(',', '.'));
+    if (!ligne) return toast.error(L('Choisissez la ligne à vendre.', 'Choose the line to sell.'));
+    if (!montant || montant <= 0) return toast.error(t('portfolio.amountInvalid'));
+    if (!venteLigne.date || venteLigne.date > today) return toast.error(L('Date invalide.', 'Invalid date.'));
+    // Vendre plus que le montant investi est normal si la ligne a pris de la valeur :
+    // on le fait confirmer, sans l'interdire.
+    if (!confirme && montant > ligne.investi + 0.005) {
+      setDepassement({
+        message: L(
+          `Vous vendez ${fmt(montant)} d'une ligne où ${fmt(ligne.investi)} restent investis. C'est normal si elle a pris de la valeur : la différence est votre plus-value. Confirmez-vous ce montant ?`,
+          `You are selling ${fmt(montant)} of a line where ${fmt(ligne.investi)} remain invested. That is expected if it has gained value: the difference is your gain. Do you confirm this amount?`,
+        ),
+        suite: () => enregistrerVenteLigne(true),
+      });
+      return;
+    }
+    try {
+      ds.createTransaction(id, {
+        date: venteLigne.date,
+        amount: montant,
+        type: 'withdrawal',
+        note: ligne.note,
+        asset_type: ligne.asset_type,
+        custom_asset_type: ligne.custom_asset_type,
+        fees_pct: parseFloat(String(venteLigne.fees).replace(',', '.')) || 0,
+        fees_type: 'euro',
+        fee_direction: 'deducted',
+        keep_in_cash: venteLigne.keepInCash,
+      });
+      toast.success(venteLigne.keepInCash
+        ? L('Vente enregistrée, produit conservé en espèces.', 'Sale recorded, proceeds kept as cash.')
+        : L('Vente enregistrée.', 'Sale recorded.'));
+      setVenteLigne(VENTE_LIGNE_VIDE);
+      refresh();
+    } catch (e) { toast.error(e.message); }
   };
   
   // Exécute la vente avec le choix de l'utilisateur
@@ -960,6 +1044,11 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
             <Button onClick={handleWithdrawalClick} className="bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/20 flex-1 sm:flex-none" data-testid="withdrawal-btn">
               <ArrowUpRight className="w-4 h-4 mr-2" /> {t("portfolio.withdrawal")}
             </Button>
+            {lignesDetenues.length > 0 && (
+              <Button variant="outline" onClick={ouvrirVenteLigne} className="flex-1 sm:flex-none" data-testid="sell-line-btn">
+                <ArrowUpRight className="w-4 h-4 mr-2" /> {L('Vendre une ligne…', 'Sell a line…')}
+              </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -1503,6 +1592,83 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
       </Card>
 
       {/* Dialogs */}
+      <ConfirmDialog
+        open={!!depassement}
+        title={L('Vérifiez ce montant', 'Check this amount')}
+        description={depassement?.message}
+        confirmLabel={L('Confirmer', 'Confirm')}
+        onConfirm={() => { const suite = depassement?.suite; setDepassement(null); suite?.(); }}
+        onCancel={() => setDepassement(null)}
+      />
+      {/* Vente d'une ligne détenue : la note et le type d'actif sont repris de la ligne */}
+      <Dialog open={venteLigne.open} onOpenChange={(o) => { if (!o) setVenteLigne(VENTE_LIGNE_VIDE); }}>
+        <DialogContent className="max-w-md" data-testid="sell-line-dialog">
+          <DialogHeader>
+            <DialogTitle className="font-heading">{L('Vendre une ligne', 'Sell a line')}</DialogTitle>
+            <DialogDescription>
+              {L(
+                "Choisissez ce que vous vendez : la vente est retirée de cette ligne, et d'elle seule. Pour un arbitrage, conservez le produit en espèces puis enregistrez l'achat.",
+                'Choose what you are selling: the sale is taken from that line only. For a switch, keep the proceeds as cash, then record the purchase.',
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {(() => {
+            const ligne = lignesDetenues.find(l => l.cle === venteLigne.cle);
+            return (
+              <div className="space-y-3">
+                <div>
+                  <Label>{L('Ligne', 'Line')}</Label>
+                  <Select value={venteLigne.cle} onValueChange={(v) => { const l = lignesDetenues.find(x => x.cle === v); setVenteLigne({ ...venteLigne, cle: v, amount: l ? String(l.investi) : "" }); }}>
+                    <SelectTrigger data-testid="sell-line-select"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {lignesDetenues.map(l => (
+                        <SelectItem key={l.cle} value={l.cle}>{nomLigne(l)} · {fmt(l.investi)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>{L('Montant vendu (€)', 'Amount sold (€)')}</Label>
+                    <Input type="number" step="0.01" min="0" value={venteLigne.amount} onChange={e => setVenteLigne({ ...venteLigne, amount: e.target.value })} data-testid="sell-line-amount" />
+                  </div>
+                  <div>
+                    <Label>{L('Frais (€)', 'Fees (€)')}</Label>
+                    <Input type="number" step="0.01" min="0" value={venteLigne.fees} onChange={e => setVenteLigne({ ...venteLigne, fees: e.target.value })} data-testid="sell-line-fees" />
+                  </div>
+                </div>
+                {ligne && (
+                  <p className="text-xs text-muted-foreground">
+                    {L(`Investi restant sur cette ligne : ${fmt(ligne.investi)}.`, `Still invested in this line: ${fmt(ligne.investi)}.`)}{' '}
+                    <button type="button" className="text-primary underline underline-offset-2" onClick={() => setVenteLigne({ ...venteLigne, amount: String(ligne.investi) })}>
+                      {L('Tout vendre', 'Sell all')}
+                    </button>
+                  </p>
+                )}
+                <div>
+                  <Label>{t("portfolio.date")}</Label>
+                  <Input type="date" max={today} value={venteLigne.date} onChange={e => setVenteLigne({ ...venteLigne, date: e.target.value })} data-testid="sell-line-date" />
+                </div>
+                <label className="flex items-start gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" className="mt-1" checked={venteLigne.keepInCash} onChange={e => setVenteLigne({ ...venteLigne, keepInCash: e.target.checked })} data-testid="sell-line-keep-cash" />
+                  <span>
+                    {L("Conserver le produit en espèces dans l'enveloppe", 'Keep the proceeds as cash in the envelope')}
+                    <span className="block text-xs text-muted-foreground">
+                      {L("Décochez si l'argent quitte l'enveloppe (retrait).", 'Untick if the money leaves the envelope (withdrawal).')}
+                    </span>
+                  </span>
+                </label>
+              </div>
+            );
+          })()}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setVenteLigne(VENTE_LIGNE_VIDE)}>{t("common.cancel")}</Button>
+            <Button onClick={() => enregistrerVenteLigne(false)} className="bg-rose-600 hover:bg-rose-700 text-white" data-testid="sell-line-confirm">
+              {L('Enregistrer la vente', 'Record the sale')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {/* Choix de financement d'un achat quand des espèces sont disponibles */}
       <Dialog open={!!cashChoice} onOpenChange={(o) => { if (!o) setCashChoice(null); }}>
         <DialogContent className="max-w-md">

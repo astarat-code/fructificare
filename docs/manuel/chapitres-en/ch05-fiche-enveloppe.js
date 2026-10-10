@@ -130,6 +130,21 @@ children.push(bonASavoir([
 // ── 5.5 ────────────────────────────────────────────────────────────────────
 children.push(h2('5.5  The withdrawal question'));
 children.push(p("When you click Withdrawal, Fructificare asks a question before saving: where does the money go?"));
+children.push(p([
+  t("Two checks come before that question. If the envelope tells its assets apart, the "), b('asset type sold'),
+  t(" is required: a sale without a type would be taken from no line. And if the amount exceeds what the envelope holds, according to your movements and your last calibration, you are asked to "),
+  b('confirm'), t(" — never prevented, since selling more than the amount invested is normal when the asset has gained value."),
+]));
+children.push(h3('Selling a line'));
+children.push(p([
+  t("The "), ui('Sell a line…'),
+  t(" button sells one specific position without retyping anything. It lists what remains invested in the envelope, grouped by "), b('note and asset type'),
+  t(": two assets bought by the same recurring movement are two lines, which you can sell separately, in full or in part."),
+]));
+children.push(step("Choose the line. The amount offered is what remains invested in it; change it for a partial sale.", 22));
+children.push(step("Enter the fees, if any, and the date.", 22));
+children.push(step([t("Leave "), ui('Keep the proceeds as cash'), t(" ticked for a switch (you then record the purchase, paid with that cash), or untick it if the money leaves the envelope.")], 22));
+children.push(p("The sale takes the note and asset type of the line: it is taken from that line only."));
 children.push(gap(100));
 children.push(...figure('5.4', 'The withdrawal confirmation window',
   "the window with its two options — “Keep as Cash” in blue and “Withdraw” in red — and their descriptions."));

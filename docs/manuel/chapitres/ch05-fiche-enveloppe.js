@@ -130,6 +130,21 @@ children.push(bonASavoir([
 // ── 5.5 ────────────────────────────────────────────────────────────────────
 children.push(h2('5.5  La question du retrait'));
 children.push(p("Quand vous cliquez sur Vente, Fructificare pose une question avant d'enregistrer : où va l'argent ?"));
+children.push(p([
+  t("Deux contrôles précèdent cette question. Si l'enveloppe distingue ses actifs, le "), b("type d'actif vendu"),
+  t(" est obligatoire : une vente sans type ne serait retirée d'aucune ligne. Et si le montant dépasse ce que contient l'enveloppe, d'après vos mouvements et votre dernière calibration, une "),
+  b('confirmation'), t(" vous est demandée — sans jamais l'interdire, car vendre plus que le montant investi est normal quand l'actif a pris de la valeur."),
+]));
+children.push(h3('Vendre une ligne'));
+children.push(p([
+  t("Le bouton "), ui('Vendre une ligne…'),
+  t(" vend une position précise sans rien ressaisir. Il liste ce qui reste investi dans l'enveloppe, regroupé par "), b('note et type d\'actif'),
+  t(" : deux actifs achetés par un même mouvement récurrent forment deux lignes, que vous pouvez vendre séparément, en tout ou en partie."),
+]));
+children.push(step("Choisissez la ligne. Le montant proposé est ce qui y reste investi ; modifiez-le pour une vente partielle.", 22));
+children.push(step("Indiquez les frais éventuels et la date.", 22));
+children.push(step([t("Laissez cochée "), ui('Conserver le produit en espèces'), t(" pour un arbitrage (vous enregistrerez ensuite l'achat, payé par ces espèces), ou décochez si l'argent quitte l'enveloppe.")], 22));
+children.push(p("La vente reprend la note et le type d'actif de la ligne : elle n'est retirée que de celle-ci."));
 children.push(gap(100));
 children.push(...figure('5.4', 'La fenêtre de confirmation de retrait',
   "la fenêtre avec ses deux options — « Conserver en espèces » en bleu et « Ne pas conserver » en rouge — et leurs descriptions."));

@@ -2962,23 +2962,109 @@ function getAssetTypeStats() {
  *           • enveloppe non calibrée → soldes des versements (repli).
  * @returns {Object<string, number>} { assetType: value }
  */
+/** Composition par actif d'une enveloppe, base versements (hors transactions de calibration). */
+function compositionVersements(portfolioId) {
+  const envAsset = {};
+  getTransactions(portfolioId).filter(t => !_isCalibrationTx(t)).forEach(t => {
+    const k   = resolveAssetType(t) || 'non_defini';
+    const net = t.net_amount ?? t.amount ?? 0;
+    if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
+    else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - montantFraisCompris(t);
+  });
+  return envAsset;
+}
+
+/**
+ * Lignes détenues dans une enveloppe : ce qui reste investi, regroupé par note et par
+ * type d'actif. Deux actifs achetés par un même mouvement (un récurrent réparti entre un
+ * fonds en euros et un ETF) forment donc deux lignes, que l'on peut vendre séparément.
+ *
+ * @returns {Array<{ cle, note, asset_type, custom_asset_type, type_resolu, investi, unites }>}
+ *   lignes dont le montant investi restant est positif, de la plus grosse à la plus petite.
+ */
+function getHeldLines(portfolioId) {
+  const lignes = new Map();
+  getTransactions(portfolioId).filter(t => !_isCalibrationTx(t)).forEach(t => {
+    if (t.type !== 'deposit' && t.type !== 'withdrawal') return;
+    const note = (t.note || '').trim();
+    const typeResolu = resolveAssetType(t) || 'non_defini';
+    const cle = `${note}|${typeResolu}`;
+    if (!lignes.has(cle)) {
+      lignes.set(cle, { cle, note, asset_type: t.asset_type || null, custom_asset_type: t.custom_asset_type || null,
+        type_resolu: typeResolu, investi: 0, unites: 0 });
+    }
+    const l = lignes.get(cle);
+    const signe = t.type === 'deposit' ? 1 : -1;
+    l.investi += signe * (t.type === 'deposit' ? (t.net_amount ?? t.amount ?? 0) : montantFraisCompris(t));
+    const q = parseFloat(t.quantity);
+    if (!isNaN(q)) l.unites += signe * q;
+  });
+  return [...lignes.values()]
+    .map(l => ({ ...l, investi: Math.round(l.investi * 100) / 100, unites: Math.round(l.unites * 10000) / 10000 }))
+    .filter(l => l.investi > 0.005)
+    .sort((a, b) => b.investi - a.investi);
+}
+
+/**
+ * Un retrait dépasse-t-il ce que l'enveloppe contient ? Sert à demander confirmation,
+ * jamais à bloquer : vendre plus que le montant investi est normal quand la ligne a pris
+ * de la valeur.
+ *
+ * @param {string} portfolioId
+ * @param {number} montant            montant du retrait, frais compris
+ * @param {string|null} [typeActif]   type d'actif vendu, tel qu'enregistré sur le mouvement
+ * @returns {{ depasse: boolean, motif: 'enveloppe'|'actif'|null, disponible: number }}
+ */
+function checkWithdrawal(portfolioId, montant, typeActif = null) {
+  const p = getPortfolio(portfolioId);
+  if (!p) return { depasse: false, motif: null, disponible: 0 };
+  const cals = getCalibrations(portfolioId);
+  const derniere = cals.length ? cals[cals.length - 1] : null;
+  // Valeur de référence : la plus favorable entre la dernière valeur constatée et le
+  // montant investi, pour ne pas alerter à tort juste après un versement.
+  const valeur = Math.max(derniere ? derniere.total_value : 0, p.balance || 0);
+  if (montant > valeur + 0.005) return { depasse: true, motif: 'enveloppe', disponible: Math.max(0, valeur) };
+  if (typeActif) {
+    const cle = resolveAssetType({ portfolio_id: portfolioId, asset_type: typeActif });
+    const investi = compositionVersements(portfolioId)[cle] || 0;
+    // Sans valeur constatée par actif, seul le montant investi est connu : on ne signale
+    // que le cas où l'enveloppe ne détient rien, ou presque, de cet actif.
+    if (investi <= 0.005) return { depasse: true, motif: 'actif', disponible: 0 };
+  }
+  return { depasse: false, motif: null, disponible: valeur };
+}
+
+/**
+ * Détail par actif d'une calibration, prêt pour la répartition :
+ *   • une position saisie d'après un mouvement type multi-actifs est ventilée selon la
+ *     répartition de ce modèle, au lieu d'être rangée en bloc dans « Autres » ;
+ *   • les valeurs sont ramenées au total de la calibration quand leur somme en diffère
+ *     (détail partiel, ou pourcentages saisis à la place de montants).
+ */
+function _repartitionCalibration(cal) {
+  const modeles = getData().movement_templates || [];
+  const items = [];
+  (cal.asset_breakdown || []).forEach(item => {
+    if (!(item.value > 0)) return;
+    const tpl = item.template_id ? modeles.find(m => m.id === item.template_id) : null;
+    const allocs = tpl && Array.isArray(tpl.multi_asset_allocations) ? tpl.multi_asset_allocations : [];
+    const totalPct = allocs.reduce((s2, a) => s2 + (parseFloat(a.pct) || 0), 0);
+    if (allocs.length > 0 && totalPct > 0) {
+      allocs.forEach(a => items.push({ asset_type: a.type || 'autre', value: item.value * (parseFloat(a.pct) || 0) / totalPct }));
+    } else {
+      items.push({ asset_type: item.asset_type, value: item.value });
+    }
+  });
+  const somme = items.reduce((s2, i) => s2 + i.value, 0);
+  const facteur = somme > 0 && cal.total_value > 0 ? cal.total_value / somme : 1;
+  return items.map(i => ({ asset_type: i.asset_type, value: i.value * facteur }));
+}
+
 function getAssetAllocation(useRealValue) {
   const totals = {};
   const add = (type, v) => {
     const k = type || 'non_defini';
     totals[k] = (totals[k] || 0) + v;
-  };
-
-  // Composition par actif d'une enveloppe, base versements (hors transactions de calibration)
-  const compositionVersements = (portfolioId) => {
-    const envAsset = {};
-    getTransactions(portfolioId).filter(t => !_isCalibrationTx(t)).forEach(t => {
-      const k   = resolveAssetType(t) || 'non_defini';
-      const net = t.net_amount ?? t.amount ?? 0;
-      if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
-      else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - montantFraisCompris(t);
-    });
-    return envAsset;
   };
 
   if (!useRealValue) {
@@ -2999,7 +3085,7 @@ function getAssetAllocation(useRealValue) {
       const calBreakdown = [...cals].reverse().find(c => c.asset_breakdown && c.asset_breakdown.length > 0);
       if (calBreakdown) {
         // Niveau 2 : valeurs réelles par actif
-        calBreakdown.asset_breakdown.forEach(item => { if (item.value > 0) add(item.asset_type, item.value); });
+        _repartitionCalibration(calBreakdown).forEach(item => { if (item.value > 0) add(item.asset_type, item.value); });
       } else if (depTotal > 0) {
         // Niveau 1 : total réparti au prorata des versements par actif
         Object.entries(envAsset).forEach(([k, v]) => { if (v > 0) add(k, lastCal.total_value * (v / depTotal)); });
@@ -3600,6 +3686,10 @@ function addCalibration(cal) {
     asset_breakdown: cal.asset_breakdown || null,
     created_at: new Date().toISOString(),
   };
+  // Une calibration constate la valeur d'un jour : en saisir une seconde à la même date
+  // corrige la première, elle ne s'y ajoute pas.
+  _currentData.calibrations = _currentData.calibrations
+    .filter(c => !(c.portfolio_id === cal.portfolio_id && c.date === cal.date));
   _currentData.calibrations.push(entry);
   saveData();
   addLog(`CALIBRATION_ADDED: portfolio ${cal.portfolio_id} au ${cal.date}`);
@@ -5250,6 +5340,7 @@ const dataService = {
   getBudgetEntries, getBudgetEntriesForMonth, createBudgetEntry, updateBudgetEntry, deleteBudgetEntry,
   // Regular movements (mouvements réguliers)
   getRegularMovements, getRegularMovementsByPortfolio,
+  getHeldLines, checkWithdrawal,
   createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, stopRegularMovement, deleteRegularMovement, applyNoteToRecurringOccurrences,
   getRegularMovementOccurrences, getRegularMovementOccurrencesForMonth, syncRegularMovements, runRecurringCatchUp,
   // Programmed movements
