@@ -101,8 +101,8 @@ export default function GlossaryTerm({ id, children, className = '' }) {
 
           <p className="text-xs text-muted-foreground/70 pt-1.5 border-t border-border">
             {isEn
-              ? 'Full glossary in the left menu · turn these bubbles off in Settings'
-              : 'Glossaire complet dans le menu de gauche · désactivable dans les Paramètres'}
+              ? 'Full glossary in the Help menu · turn these bubbles off in Settings'
+              : 'Glossaire complet dans le menu Aide · désactivable dans les Paramètres'}
           </p>
         </div>
       </PopoverContent>

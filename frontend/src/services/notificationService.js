@@ -134,11 +134,19 @@ function addNotification(type, title, message, action = null) {
   return true;
 }
 
+// Types de notifications qui redisent la même chose à chaque passage, avec un décompte
+// mis à jour. Les autres (trophée, niveau, objectif atteint) relatent chacune un événement
+// distinct et se conservent toutes.
+const RAPPELS_REMPLACES = new Set(['daily_tip', 'challenge_reminder', 'streak_danger', 'gamif_summary']);
+
 /** Ajout brut sans check de cap. `title`/`message` : string (FR) ou { fr, en }. */
 function _rawAdd(type, title, message, action, today, currentNs) {
   const t = _norm(title);
   const m = _norm(message);
-  const items = Array.isArray(currentNs.items) ? [...currentNs.items] : [];
+  // Un rappel qui se répète (« Défi du mois en cours », jour après jour) remplace le
+  // précédent : seul le dernier décompte a un intérêt, la liste ne doit pas s'en remplir.
+  const items = (Array.isArray(currentNs.items) ? currentNs.items : [])
+    .filter(n => !(RAPPELS_REMPLACES.has(type) && n.type === type && n.titleFr === t.fr));
   items.unshift({
     id:        _uuid(),
     type,

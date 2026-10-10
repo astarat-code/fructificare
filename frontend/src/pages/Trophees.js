@@ -28,7 +28,7 @@ import gamificationService  from "../services/gamificationService";
 import trophyService        from "../services/trophyService";
 import questService         from "../services/questService";
 import AvatarIcon           from "../components/gamification/AvatarIcon";
-import avatarService, { CHAPITRES } from "../services/avatarService";
+import avatarService from "../services/avatarService";
 import objectiveService     from "../services/objectiveService";
 import healthScoreService   from "../services/healthScoreService";
 import dataService          from "../services/dataService";
@@ -258,13 +258,9 @@ function AvatarHeader({ avatar, capital, lang }) {
         <div className="flex items-baseline justify-between flex-wrap gap-2">
           <div className="flex items-baseline gap-2 flex-wrap">
             <span className="text-xl font-bold" style={{ color: accent }}>{label}</span>
-            {avatar.isPrestige ? (
+            {avatar.isPrestige && (
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-600 dark:text-amber-400">
                 {lang === 'fr' ? 'LÉGENDE' : 'LEGEND'}
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                {lang === 'fr' ? CHAPITRES[avatar.chapitre]?.fr : CHAPITRES[avatar.chapitre]?.en}
               </span>
             )}
           </div>

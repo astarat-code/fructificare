@@ -91,21 +91,21 @@ fn construire_menu<R: Runtime>(handle: &AppHandle<R>, anglais: bool) -> tauri::R
     let mut edit = SubmenuBuilder::new(handle, l("Éditer", "Edit"));
     // La webview de macOS n'exécute ⌘Z, ⌘X, ⌘C, ⌘V et ⌘A que si le menu Édition porte ces
     // commandes : sans elles, impossible de coller une phrase secrète ou un montant.
-    // Windows et Linux gèrent ces raccourcis dans la webview elle-même.
+    // Annuler et Rétablir n'existent comme commandes de menu que sur macOS ; Windows et
+    // Linux les gèrent au clavier, dans la webview elle-même.
     #[cfg(target_os = "macos")]
     {
         edit = edit
             .item(&PredefinedMenuItem::undo(handle, Some(l("Annuler", "Undo")))?)
             .item(&PredefinedMenuItem::redo(handle, Some(l("Rétablir", "Redo")))?)
-            .separator()
-            .item(&PredefinedMenuItem::cut(handle, Some(l("Couper", "Cut")))?)
-            .item(&PredefinedMenuItem::copy(handle, Some(l("Copier", "Copy")))?)
-            .item(&PredefinedMenuItem::paste(handle, Some(l("Coller", "Paste")))?)
-            .item(&PredefinedMenuItem::select_all(handle, Some(l("Tout sélectionner", "Select All")))?)
             .separator();
     }
     let edit = edit
-        .item(&MenuItemBuilder::with_id("glossary", l("Glossaire", "Glossary")).build(handle)?)
+        .item(&PredefinedMenuItem::cut(handle, Some(l("Couper", "Cut")))?)
+        .item(&PredefinedMenuItem::copy(handle, Some(l("Copier", "Copy")))?)
+        .item(&PredefinedMenuItem::paste(handle, Some(l("Coller", "Paste")))?)
+        .separator()
+        .item(&PredefinedMenuItem::select_all(handle, Some(l("Tout sélectionner", "Select All")))?)
         .build()?;
 
     // ── Affichage : deux sous-menus, Thèmes puis Langues ───────────────
@@ -125,6 +125,7 @@ fn construire_menu<R: Runtime>(handle: &AppHandle<R>, anglais: bool) -> tauri::R
     // ── Aide ───────────────────────────────────────────────────────────
     let help = SubmenuBuilder::new(handle, l("Aide", "Help"))
         .item(&MenuItemBuilder::with_id("manual", l("Manuel d'utilisation", "User manual")).build(handle)?)
+        .item(&MenuItemBuilder::with_id("glossary", l("Glossaire", "Glossary")).build(handle)?)
         .build()?;
 
     #[allow(unused_mut)]
