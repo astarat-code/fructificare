@@ -60,6 +60,12 @@ const RECURRENCE_LABELS = {
   en: { monthly: 'Monthly',   quarterly: 'Quarterly',     semi_annual: 'Semi-annual',  annual: 'Annual'  },
 };
 
+// Noms anglais des champs du journal des modifications (enregistrés en français).
+const CHAMPS_EN = {
+  type: 'Type', 'date de début': 'Start date', 'récurrence': 'Recurrence', enveloppe: 'Envelope',
+  frais: 'Fees', 'frais annuels': 'Annual fees', 'répartition': 'Allocation',
+};
+
 function emptyForm(portfolioId = '') {
   return {
     portfolio_id:      portfolioId,
@@ -109,6 +115,12 @@ export default function RegularMovementsPanel({
   const [movements,   setMovements]   = useState([]);
   const [form,        setForm]        = useState(() => emptyForm(portfolioId || ''));
   const [editingId,   setEditingId]   = useState(null);
+  // Modification d'un récurrent : date à partir de laquelle les changements s'appliquent,
+  // et date de début d'origine (borne basse : « depuis le début »). Sans objet dans une
+  // simulation, dont les occurrences déjà posées ne sont jamais refaites.
+  const [effectiveFrom, setEffectiveFrom] = useState(today());
+  const [editOriginalStart, setEditOriginalStart] = useState('');
+  const datedEdit = !!editingId && !dataSource;
 
   // Mission 1 (janvier) : visite du panneau des mouvements récurrents (à l'ouverture)
   useEffect(() => {
@@ -160,7 +172,7 @@ export default function RegularMovementsPanel({
   const _commitSave = (payload, noteScope) => {
     try {
       if (editingId) {
-        ds.updateRegularMovement(editingId, payload);
+        ds.updateRegularMovement(editingId, payload, { effectiveFrom });
         if (noteScope) ds.applyNoteToRecurringOccurrences(editingId, payload.note, noteScope);
         toast.success(L('Mouvement régulier modifié', 'Regular movement updated'));
       } else {
@@ -225,6 +237,8 @@ export default function RegularMovementsPanel({
   // ── Modifier ────────────────────────────────────────────────────────────────
   const handleEdit = (rm) => {
     setEditingId(rm.id);
+    setEffectiveFrom(today());
+    setEditOriginalStart(rm.start_date);
     setEditOriginalNote(rm.note || ''); // référence pour détecter un vrai changement de note
     const hasAllocations = (rm.asset_allocations?.length || 0) > 0;
     setForm({
@@ -1008,6 +1022,50 @@ export default function RegularMovementsPanel({
               </div>
             )}
 
+            {/* Date d'effet des modifications : le passé n'est refait que sur demande */}
+            {datedEdit && form.portfolio_id !== 'compte_cheque' && (() => {
+              const depuisLeDebut = effectiveFrom <= editOriginalStart;
+              const remplaces = ds.countRecurringOccurrencesFrom
+                ? ds.countRecurringOccurrencesFrom(editingId, depuisLeDebut ? null : effectiveFrom)
+                : 0;
+              return (
+                <div className="space-y-2 border rounded-lg p-3 bg-muted/20" data-testid="rm-effective-from">
+                  <Label>{L('Appliquer les modifications à partir du', 'Apply the changes from')}</Label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Input
+                      type="date"
+                      className="w-auto"
+                      value={effectiveFrom}
+                      min={editOriginalStart}
+                      max={today()}
+                      onChange={(e) => setEffectiveFrom(e.target.value && e.target.value <= today() ? e.target.value : today())}
+                      data-testid="rm-effective-from-input"
+                    />
+                    <Button type="button" variant="outline" size="sm" onClick={() => setEffectiveFrom(today())}>
+                      {L("Aujourd'hui", 'Today')}
+                    </Button>
+                    <Button type="button" variant="outline" size="sm" onClick={() => setEffectiveFrom(editOriginalStart)} data-testid="rm-effective-from-start">
+                      {L('Depuis le début', 'From the start')}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground flex items-start gap-1">
+                    <Info className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    <span data-testid="rm-effective-from-hint">
+                      {depuisLeDebut
+                        ? L(
+                          `Tout l'historique de ce mouvement sera refait avec les nouveaux réglages (${remplaces} mouvement${remplaces > 1 ? 's' : ''} déjà enregistré${remplaces > 1 ? 's' : ''}).`,
+                          `The whole history of this movement will be redone with the new settings (${remplaces} movement${remplaces > 1 ? 's' : ''} already recorded).`,
+                        )
+                        : L(
+                          `Les mouvements déjà enregistrés avant cette date ne changent pas. ${remplaces > 0 ? `${remplaces} mouvement${remplaces > 1 ? 's' : ''} enregistré${remplaces > 1 ? 's' : ''} à partir de cette date ser${remplaces > 1 ? 'ont' : 'a'} refait${remplaces > 1 ? 's' : ''} si vous changez le montant, le type, les frais, la répartition ou le rythme.` : 'Aucun mouvement enregistré à partir de cette date : seules les prochaines échéances sont concernées.'}`,
+                          `Movements recorded before this date are left unchanged. ${remplaces > 0 ? `${remplaces} movement${remplaces > 1 ? 's' : ''} recorded from this date will be redone if you change the amount, type, fees, allocation or schedule.` : 'No movement recorded from this date: only the coming occurrences are affected.'}`,
+                        )}
+                    </span>
+                  </p>
+                </div>
+              );
+            })()}
+
             {/* Actions */}
             <div className="flex gap-2 pt-2">
               {editingId && (
@@ -1231,8 +1289,10 @@ export default function RegularMovementsPanel({
                               {mod.champ === 'montant'
                                 ? L(`Montant modifié le ${fmtDate(mod.date, lang)} : ${fmt(mod.ancienneValeur)} → ${fmt(mod.nouvelleValeur)}`,
                                     `Amount changed on ${fmtDate(mod.date, lang)}: ${fmt(mod.ancienneValeur)} → ${fmt(mod.nouvelleValeur)}`)
-                                : L(`${mod.champ} modifié le ${fmtDate(mod.date, lang)}`, `${mod.champ} changed on ${fmtDate(mod.date, lang)}`)
+                                : L(`${mod.champ.charAt(0).toUpperCase()}${mod.champ.slice(1)} : modification du ${fmtDate(mod.date, lang)}`,
+                                    `${CHAMPS_EN[mod.champ] || mod.champ} changed on ${fmtDate(mod.date, lang)}`)
                               }
+                              {mod.aPartirDu && L(`, appliquée à partir du ${fmtDate(mod.aPartirDu, lang)}`, `, applied from ${fmtDate(mod.aPartirDu, lang)}`)}
                             </p>
                           ))}
                         </div>

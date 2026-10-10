@@ -4431,46 +4431,83 @@ function createRegularMovement(data) {
   return rm;
 }
 
-function updateRegularMovement(id, updates) {
+// Paramètres d'un mouvement récurrent dont dépendent les mouvements qu'il enregistre.
+// Changer l'un d'eux oblige à refaire les occurrences concernées ; changer autre chose
+// (note, date de fin) n'y touche pas.
+const CHAMPS_RECURRENT_HISTORIQUE = [
+  'type', 'amount', 'start_date', 'recurrence', 'portfolio_id',
+  'fees_pct', 'fees_type', 'fee_direction', 'annual_fees_pct', 'annual_fees_type',
+  'asset_types', 'asset_allocations',
+];
+const NOMS_CHAMPS_RECURRENT = {
+  type: 'type', amount: 'montant', start_date: 'date de début', recurrence: 'récurrence',
+  portfolio_id: 'enveloppe', fees_pct: 'frais', fees_type: 'frais', fee_direction: 'frais',
+  annual_fees_pct: 'frais annuels', annual_fees_type: 'frais annuels',
+  asset_types: 'répartition', asset_allocations: 'répartition',
+};
+
+/**
+ * Modifie un mouvement récurrent.
+ *
+ * Quand un paramètre qui détermine les mouvements enregistrés change (montant, type,
+ * frais, répartition, rythme…), seules les occurrences à partir de `effectiveFrom` sont
+ * refaites avec les nouveaux paramètres. Celles d'avant restent telles qu'elles ont été
+ * enregistrées : modifier un récurrent ne réécrit plus le passé par surprise.
+ *
+ * @param {string} id
+ * @param {object} updates
+ * @param {{ effectiveFrom?: string }} [options] — 'YYYY-MM-DD', au plus tard aujourd'hui.
+ *   Par défaut : aujourd'hui. Une date antérieure ou égale au début du mouvement refait
+ *   tout son historique.
+ */
+function updateRegularMovement(id, updates, options = {}) {
   const store = getData();
   const idx = (store.regular_movements || []).findIndex(rm => rm.id === id);
   if (idx === -1) throw new Error('Mouvement régulier introuvable');
   const existing = store.regular_movements[idx];
-  // Audit trail : tracer les modifications de montant
-  const auditEntries = [];
-  if (updates.amount !== undefined && parseFloat(updates.amount) !== existing.amount) {
-    auditEntries.push({
-      date:          new Date().toISOString().split('T')[0],
-      champ:         'montant',
-      ancienneValeur: existing.amount,
-      nouvelleValeur: parseFloat(updates.amount),
-    });
-  }
-  store.regular_movements[idx] = {
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const next = {
     ...existing,
     ...updates,
-    amount:                  updates.amount !== undefined ? parseFloat(updates.amount) : existing.amount,
-    asset_allocations:       updates.asset_allocations !== undefined
-                               ? updates.asset_allocations
-                               : (existing.asset_allocations || []),
-    historique_modifications: [...(existing.historique_modifications || []), ...auditEntries],
+    amount:            updates.amount !== undefined ? parseFloat(updates.amount) : existing.amount,
+    asset_allocations: updates.asset_allocations !== undefined
+                         ? updates.asset_allocations
+                         : (existing.asset_allocations || []),
   };
-  const updated = store.regular_movements[idx];
 
-  // ── Resync des transactions si le mouvement reste actif et des paramètres
-  // clés ont changé (montant, date de début, récurrence, type).
+  // Comparaison des VALEURS : un formulaire renvoie tous ses champs, modifiés ou non.
+  const identique = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  const changes = CHAMPS_RECURRENT_HISTORIQUE.filter(c => !identique(existing[c], next[c]));
+
+  // À partir de quand les nouveaux paramètres valent. Jamais dans le futur : les
+  // occurrences d'ici là devraient garder les anciens paramètres, qui ne sont plus connus.
+  let effectiveFrom = options.effectiveFrom || todayStr;
+  if (effectiveFrom > todayStr) effectiveFrom = todayStr;
+  const toutRefaire = effectiveFrom <= next.start_date;
+
+  // Journal des modifications : une ligne par notion modifiée, avec sa date d'effet.
+  const auditEntries = [];
+  const dejaNotes = new Set();
+  changes.forEach(c => {
+    const champ = NOMS_CHAMPS_RECURRENT[c];
+    if (dejaNotes.has(champ)) return;
+    dejaNotes.add(champ);
+    const entree = { date: todayStr, champ, aPartirDu: toutRefaire ? next.start_date : effectiveFrom };
+    if (c === 'amount' || c === 'type' || c === 'recurrence' || c === 'start_date') {
+      entree.ancienneValeur = existing[c];
+      entree.nouvelleValeur = next[c];
+    }
+    auditEntries.push(entree);
+  });
+  next.historique_modifications = [...(existing.historique_modifications || []), ...auditEntries];
+
+  store.regular_movements[idx] = next;
+  const updated = next;
+
   // Ne s'applique pas aux mouvements compte_cheque (pas de transactions).
-  const isStillActive   = updated.status === 'active';
-  const historyAffected = updates.amount !== undefined
-                       || updates.start_date !== undefined
-                       || updates.recurrence !== undefined
-                       || updates.type !== undefined
-                       || updates.fees_pct !== undefined
-                       || updates.fees_type !== undefined
-                       || updates.annual_fees_pct !== undefined
-                       || updates.annual_fees_type !== undefined;
-  if (isStillActive && historyAffected && updated.portfolio_id !== 'compte_cheque') {
-    _resyncMovementTransactions(id); // inclut saveData()
+  if (updated.status === 'active' && changes.length > 0 && updated.portfolio_id !== 'compte_cheque') {
+    _resyncMovementTransactions(id, toutRefaire ? null : effectiveFrom); // inclut saveData()
   } else {
     saveData();
   }
@@ -4479,6 +4516,15 @@ function updateRegularMovement(id, updates) {
   // Notifier les composants abonnés (calendrier, budget)
   try { gamificationService.dispatchEvent('recurringMovementsUpdated', {}); } catch (_) {}
   return updated;
+}
+
+/**
+ * Nombre de mouvements déjà enregistrés par un récurrent à partir d'une date : ceux
+ * qu'une modification prenant effet à cette date remplacerait.
+ */
+function countRecurringOccurrencesFrom(id, fromDate) {
+  return (getData().transactions || [])
+    .filter(tx => tx.from_recurring_id === id && (!fromDate || tx.date >= fromDate)).length;
 }
 
 function stopRegularMovement(id) {
@@ -4622,51 +4668,33 @@ function _generateRecurringOccurrences(rm, untilDate) {
 }
 
 /**
- * Supprime toutes les transactions liées à un mouvement récurrent, inverse
- * leur impact sur le solde/totaux de l'enveloppe, puis rappelle syncRegularMovements
- * pour les recréer selon les nouveaux paramètres (start_date, amount, recurrence…).
+ * Refait les mouvements enregistrés par un récurrent après une modification de ses
+ * paramètres : supprime ceux datés de `fromDate` ou après, puis laisse
+ * syncRegularMovements les recréer avec les nouveaux paramètres.
  *
- * Utilisé par updateRegularMovement quand des paramètres clés changent.
- * Ne s'applique pas aux mouvements compte_cheque (pas de transactions).
+ * Les mouvements antérieurs à `fromDate` ne sont pas touchés. Le récurrent retient cette
+ * date (`applies_from`) : ses paramètres actuels ne valent qu'à partir d'elle, et aucune
+ * occurrence plus ancienne ne doit être recréée avec eux — par exemple si le rythme a
+ * changé et que les anciennes dates ne tombent plus sur la nouvelle grille.
  *
  * @param {string} id — identifiant du mouvement récurrent
+ * @param {string|null} [fromDate] — 'YYYY-MM-DD' ; null = tout l'historique du récurrent
  */
-function _resyncMovementTransactions(id) {
+function _resyncMovementTransactions(id, fromDate = null) {
   const store = getData();
   const rm = (store.regular_movements || []).find(r => r.id === id);
   if (!rm || rm.portfolio_id === 'compte_cheque') return;
 
-  // ── 1. Supprimer les transactions liées et inverser leur impact sur les soldes ─
-  const linkedTxs = (store.transactions || []).filter(tx => tx.from_recurring_id === id);
-  if (linkedTxs.length > 0) {
-    const portfolioMap = {};
-    (store.portfolios || []).forEach(p => { portfolioMap[p.id] = p; });
+  const concerne = (tx) => tx.from_recurring_id === id && (!fromDate || tx.date >= fromDate);
+  store.transactions = (store.transactions || []).filter(tx => !concerne(tx));
+  rm.applies_from = fromDate || null;
 
-    for (const tx of linkedTxs) {
-      const portfolio = portfolioMap[tx.portfolio_id];
-      if (!portfolio) continue;
-      const amount    = tx.amount    || 0;
-      const netAmount = tx.net_amount != null ? tx.net_amount : amount;
-      if (tx.type === 'deposit') {
-        portfolio.balance        = Math.round(((portfolio.balance        || 0) - netAmount) * 100) / 100;
-        portfolio.total_deposits = Math.round(((portfolio.total_deposits || 0) - amount)    * 100) / 100;
-        portfolio.total_fees     = Math.round(((portfolio.total_fees     || 0) - (tx.fees_amount || 0)) * 100) / 100;
-      } else {
-        portfolio.balance           = Math.round(((portfolio.balance           || 0) + netAmount) * 100) / 100;
-        portfolio.total_withdrawals = Math.round(((portfolio.total_withdrawals || 0) - amount)    * 100) / 100;
-      }
-    }
-    store.transactions = store.transactions.filter(tx => tx.from_recurring_id !== id);
-  }
-
-  // ── 2. Réappliquer toutes les occurrences passées avec les nouveaux paramètres ─
+  // Réappliquer les occurrences concernées avec les nouveaux paramètres.
   syncRegularMovements();
 
-  // ── 3. Garantir la sauvegarde même si syncRegularMovements n'a rien créé ─────
-  // (ex : nouvelle start_date dans le futur → aucune occurrence passée)
+  // Garantir la sauvegarde même si syncRegularMovements n'a rien créé
+  // (ex : nouvelle start_date dans le futur → aucune occurrence passée).
   saveData();
-
-  // ── 4. Log dev ────────────────────────────────────────────────────────────────
 }
 
 /**
@@ -4699,7 +4727,10 @@ function syncRegularMovements(catchUpReport = null) {
   for (const rm of rms) {
     try {
       // Dates d'occurrences passées (start_date → today inclus)
-      const allDates = _generateRecurringOccurrences(rm, todayStr);
+      // Les paramètres actuels ne valent qu'à partir de `applies_from` (voir
+      // _resyncMovementTransactions) : rien n'est créé avant.
+      const allDates = _generateRecurringOccurrences(rm, todayStr)
+        .filter(d => !rm.applies_from || d >= rm.applies_from);
       if (allDates.length === 0) continue;
 
       // Dates déjà enregistrées pour ce mouvement récurrent
@@ -5209,7 +5240,7 @@ const dataService = {
   getBudgetEntries, getBudgetEntriesForMonth, createBudgetEntry, updateBudgetEntry, deleteBudgetEntry,
   // Regular movements (mouvements réguliers)
   getRegularMovements, getRegularMovementsByPortfolio,
-  createRegularMovement, updateRegularMovement, stopRegularMovement, deleteRegularMovement, applyNoteToRecurringOccurrences,
+  createRegularMovement, updateRegularMovement, countRecurringOccurrencesFrom, stopRegularMovement, deleteRegularMovement, applyNoteToRecurringOccurrences,
   getRegularMovementOccurrences, getRegularMovementOccurrencesForMonth, syncRegularMovements, runRecurringCatchUp,
   // Programmed movements
   getProgrammedMovements, createProgrammedMovement, updateProgrammedMovement, deleteProgrammedMovement,
