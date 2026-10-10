@@ -10,7 +10,7 @@ import { useLanguage } from "../context/LanguageContext";
 import Disclaimer from "../components/ui/Disclaimer";
 import CalibrationModal from "../components/CalibrationModal";
 import { DIETZ_NOTE } from "../components/ui/Disclaimer";
-import { signeFrais } from "../lib/transactionFees";
+import { signeFrais, montantNet } from "../lib/transactionFees";
 import { versementsPea } from "../lib/peaCap";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -699,13 +699,16 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
         {[
           {
             label: <GlossaryTerm id="versements">{t("portfolio.deposits")}</GlossaryTerm>,
-            value: fmt(portfolio.net_deposits),
+            value: fmt(portfolio.net_paid ?? portfolio.net_deposits),
             color: "text-emerald-600 dark:text-emerald-400",
             tip: L(
-              "Versements = capital net réellement en place dans l'enveloppe (total versé − retraits réels). Une vente dont le produit reste en espèces à l'intérieur n'est pas un retrait ici. L'écart avec la valeur réelle calibrée est votre plus/moins-value.",
-              "Deposits = net capital actually placed in the envelope (total deposited − real withdrawals). A sale whose proceeds stay as internal cash is not a withdrawal here. The gap with the calibrated real value is your gain/loss."
+              "Versements = argent que vous avez apporté à l'enveloppe, frais de versement compris, moins les retraits réels. Une vente dont le produit reste en espèces à l'intérieur n'est pas un retrait ici. Le rendement, lui, se calcule sur le montant investi, hors frais.",
+              "Deposits = money you brought into the envelope, deposit fees included, minus real withdrawals. A sale whose proceeds stay as internal cash is not a withdrawal here. The return is computed on the amount invested, fees excluded."
             ),
             subs: [
+              ...((portfolio.deposit_fees || 0) > 0 ? [
+                L(`Dont frais : ${fmt(portfolio.deposit_fees)}`, `Incl. fees: ${fmt(portfolio.deposit_fees)}`),
+              ] : []),
               L(`Total versé : ${fmt(portfolio.gross_deposits)}`, `Total bought: ${fmt(portfolio.gross_deposits)}`),
               L(`Total vendu : ${fmt(portfolio.total_sold)}`, `Total sold: ${fmt(portfolio.total_sold)}`),
             ],
@@ -871,8 +874,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                 </div>
                 <p className="text-[11px] text-muted-foreground mt-1">
                   {txForm.fee_direction === 'added'
-                    ? L("Les frais s'ajoutent au montant total sorti ou entré.", 'Fees are added on top of the total amount out or in.')
-                    : L('Les frais sont prélevés sur le montant reçu ou envoyé.', 'Fees are taken from the amount received or sent.')}
+                    ? L("Les frais s'ajoutent au montant saisi : ils comptent dans vos versements, pas dans le montant investi.", 'Fees come on top of the amount typed: they count in your deposits, not in the amount invested.')
+                    : L('Les frais sont prélevés sur le montant saisi : le montant investi est diminué d\'autant.', 'Fees are taken out of the amount typed: the amount invested is reduced accordingly.')}
                 </p>
               </div>
 
@@ -911,13 +914,13 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
             const feeVal = parseFloat(txForm.fees_pct) || 0;
             const feeAmt = txForm.fees_type === 'euro' ? feeVal : amt * feeVal / 100;
             const lbl    = txForm.fees_type === 'euro' ? `${feeVal} €` : `${feeVal}%`;
-            const net    = txForm.fee_direction === 'added' ? amt + feeAmt : amt - feeAmt;
+            const net    = montantNet(amt, feeAmt, txForm.fee_direction);
             return (
-              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg text-sm">
+              <div className="mt-4 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg text-sm" data-testid="tx-fees-preview">
                 <span className="text-amber-700 dark:text-amber-400">
                   {t("portfolio.feesPreview")}: {fmt(feeAmt)} ({lbl})
                   → {t("portfolio.netAmount")}: {fmt(net)}
-                  {txForm.fee_direction === 'added' && ` (${L('frais en plus', 'fees on top')})`}
+                  {' · '}{L('frais compris', 'fees included')}: {fmt(net + feeAmt)}
                 </span>
               </div>
             );
@@ -932,7 +935,7 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
                   const _amt = parseFloat(txForm.amount) || 0;
                   const _fee = parseFloat(txForm.fees_pct) || 0;
                   const _feeAmt = txForm.fees_type === 'euro' ? _fee : _amt * _fee / 100;
-                  const netAmount = txForm.fee_direction === 'added' ? _amt + _feeAmt : _amt - _feeAmt;
+                  const netAmount = montantNet(_amt, _feeAmt, txForm.fee_direction);
                   const cash = portfolio.cash_balance || 0;
                   if (cash >= netAmount) {
                     return `${t("portfolio.deposit")}: ${fmt(netAmount)} ${t("portfolio.fromCash")} (${fmt(cash)} disponible)`;
@@ -1580,8 +1583,8 @@ export default function PortfolioDetail({ dataSource = null, scope = null, portf
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
                 {editTxForm.fee_direction === 'added'
-                  ? L("Les frais s'ajoutent au montant total sorti ou entré.", 'Fees are added on top of the total amount out or in.')
-                  : L('Les frais sont prélevés sur le montant reçu ou envoyé.', 'Fees are taken from the amount received or sent.')}
+                  ? L("Les frais s'ajoutent au montant saisi : ils comptent dans vos versements, pas dans le montant investi.", 'Fees come on top of the amount typed: they count in your deposits, not in the amount invested.')
+                  : L('Les frais sont prélevés sur le montant saisi : le montant investi est diminué d\'autant.', 'Fees are taken out of the amount typed: the amount invested is reduced accordingly.')}
               </p>
             </div>
             <div><Label>{t("portfolio.assetType")}</Label>

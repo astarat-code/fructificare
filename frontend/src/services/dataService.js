@@ -294,6 +294,7 @@ import gamificationService from './gamificationService';
 import { validateBackup } from './importValidation';
 import documentService from './documentService';
 import { versementsPea } from '../lib/peaCap';
+import { montantNet, montantFraisCompris, fraisDeVersement, normaliserFraisAjoutes } from '../lib/transactionFees';
 import { estRetraitImposable } from '../lib/taxableWithdrawal';
 import { plusValuesDeLAnnee } from '../lib/plusValuesRachats';
 import { getTaxMaturity } from '../lib/taxMaturity';
@@ -498,10 +499,28 @@ function setData(data) {
     fire_settings: data.fire_settings || { monthly_need: 2500, withdrawal_rate: 4 },
   };
   _pruneOrphanCalibrations();
+  normaliserFraisAjoutes(_currentData.transactions);
   // Restaurer les préférences applicatives si présentes
   if (data.appPreferences && typeof data.appPreferences === 'object') {
     _restoreAppPreferences(data.appPreferences);
   }
+}
+
+/**
+ * Applique `normaliserFraisAjoutes` aux simulations. Une simulation tient ses totaux à
+ * jour mouvement par mouvement : les frais retirés du montant investi sont donc aussi
+ * retirés du solde et des versements de l'enveloppe simulée.
+ */
+function _normaliserFraisSimulations() {
+  (_simulationsData.simulations || []).forEach(sim => {
+    normaliserFraisAjoutes(sim.transactions).forEach(({ tx, ecart }) => {
+      if (tx.type !== 'deposit') return;
+      const p = (sim.portfolios || []).find(pp => pp.id === tx.portfolio_id);
+      if (!p) return;
+      p.balance        = Math.round(((p.balance || 0) - ecart) * 100) / 100;
+      p.total_deposits = Math.round(((p.total_deposits || 0) - ecart) * 100) / 100;
+    });
+  });
 }
 
 function saveData() {
@@ -707,9 +726,11 @@ function applyImportedData(rawData, { save = true } = {}) {
 
   _currentData = importedData;
   _pruneOrphanCalibrations();
+  normaliserFraisAjoutes(_currentData.transactions);
 
   if (data.simulations && Array.isArray(data.simulations)) {
     _simulationsData = { simulations: data.simulations };
+    _normaliserFraisSimulations();
   }
   addLog(`DATA_LOADED: ${importedData.portfolios.length} portfolios, ${importedData.transactions.length} transactions, ${(importedData.calibrations || []).length} calibrations`);
 
@@ -859,8 +880,8 @@ function getPortfolios() {
     // Pour les versements: on prend le montant net (après frais). `deps` = tous les
     // dépôts (sert au solde/pool d'actifs), y compris les achats financés par les espèces.
     const deps = txns.filter(t => t.type === 'deposit').reduce((s, t) => s + (t.net_amount || t.amount), 0);
-    // Pour les retraits: le solde diminue du montant brut (frais inclus car sortis de l'enveloppe).
-    const wdsGross = txns.filter(t => t.type === 'withdrawal').reduce((s, t) => s + (t.amount || 0), 0);
+    // Pour les retraits: le solde diminue du montant frais compris (les frais sortent de l'enveloppe).
+    const wdsGross = txns.filter(t => t.type === 'withdrawal').reduce((s, t) => s + montantFraisCompris(t), 0);
 
     // ── Flux EXTERNES vs INTERNES (dérivés du modèle espèces) ─────────────────────
     //   • Versement externe = NOUVEAUX fonds entrant de l'extérieur (part hors espèces).
@@ -869,6 +890,9 @@ function getPortfolios() {
     //     Une vente dont le produit reste en espèces à l'intérieur n'est PAS une vente externe.
     const externalDeps = txns.filter(t => t.type === 'deposit')
       .reduce((s, t) => s + (t.new_funds_amount != null ? t.new_funds_amount : (t.net_amount || t.amount)), 0);
+    // Frais payés en plus de l'argent investi : ils ont quitté la poche de l'utilisateur
+    // sans entrer dans l'enveloppe. Affichés avec les versements, exclus de tout rendement.
+    const depositFees = txns.reduce((s, t) => s + fraisDeVersement(t), 0);
     const internalBuys = txns.filter(t => t.type === 'deposit' && t.from_cash_amount)
       .reduce((s, t) => s + (t.from_cash_amount || 0), 0);
     const externalWds = txns.filter(t => t.type === 'withdrawal' && !t.keep_in_cash)
@@ -916,12 +940,11 @@ function getPortfolios() {
     const totalFees = Math.round((transactionFees + annualFeesAccumulated) * 100) / 100;
     
     // Espèces: calculer le solde en espèces
-    // Vente conservée en espèces → crédit = montant brut − frais de transaction
-    // (les frais sortent toujours des espèces, quel que soit le sens des frais).
+    // Vente conservée en espèces → crédit = montant reçu, net de frais.
     // Achat financé par les espèces (from_cash_amount) → diminue le solde espèces.
     const cashFromSales = txns
       .filter(t => t.type === 'withdrawal' && t.keep_in_cash)
-      .reduce((s, t) => s + ((t.amount || 0) - (t.fees_amount || 0)), 0);
+      .reduce((s, t) => s + (t.net_amount ?? t.amount ?? 0), 0);
     const cashUsedForPurchases = txns
       .filter(t => t.type === 'deposit' && t.from_cash_amount)
       .reduce((s, t) => s + (t.from_cash_amount || 0), 0);
@@ -932,11 +955,17 @@ function getPortfolios() {
       // « Versements » / « Ventes » = flux EXTERNES uniquement (hors recyclage interne des espèces).
       total_deposits: Math.round(externalDeps * 100) / 100,
       total_withdrawals: Math.round(externalWds * 100) / 100,
+      // Frais des versements, et versements frais compris (ce que l'utilisateur a payé).
+      // `total_deposits` reste le montant INVESTI : c'est lui qui sert aux rendements.
+      deposit_fees: Math.round(depositFees * 100) / 100,
+      total_paid: Math.round((externalDeps + depositFees) * 100) / 100,
       // AFFICHAGE « Versements » : capital net en place = versements − retraits RÉELS
       // (externes). Les ventes conservées en espèces ne sont PAS déduites ici (l'argent
       // reste sur l'enveloppe). N.B. : n'affecte QUE l'affichage — le calcul des
       // rendements/PNL continue de traiter une vente-espèces comme un retrait.
       net_deposits: Math.round((externalDeps - externalWds) * 100) / 100,
+      // Le même, frais de versement compris : c'est le chiffre AFFICHÉ sous « Versements ».
+      net_paid: Math.round((externalDeps + depositFees - externalWds) * 100) / 100,
       // Détail des transferts internes (affiché en sous-ligne des tuiles Versements / Ventes).
       internal_buys: Math.round(internalBuys * 100) / 100,
       internal_sells: Math.round(internalSells * 100) / 100,
@@ -1114,18 +1143,17 @@ function createTransaction(portfolioId, tx) {
   const feesAmount = feesType === 'euro'
     ? Math.round(feeInput * 100) / 100
     : Math.round(amount * feesPct / 100 * 100) / 100;
-  // Sens des frais de transaction (le montant BRUT saisi reste `amount` dans les deux cas) :
-  //   'deducted' (défaut) → net = montant brut − frais (frais prélevés sur le montant)
-  //   'added'            → net = montant brut + frais (frais payés en plus, intégrés au net)
-  // Le MONTANT des frais (feesAmount) est identique dans les deux cas.
+  // Sens des frais de transaction (voir lib/transactionFees) :
+  //   'deducted' (défaut) → investi = montant saisi − frais (frais prélevés sur le montant)
+  //   'added'            → investi = montant saisi (frais payés en plus, hors montant investi)
   const feeDirection = tx.fee_direction === 'added' ? 'added' : 'deducted';
-  const netAmount = Math.round((feeDirection === 'added' ? amount + feesAmount : amount - feesAmount) * 100) / 100;
+  const netAmount = montantNet(amount, feesAmount, feeDirection);
   
   // Calculer le solde espèces actuel
   const txns = store.transactions.filter(t => t.portfolio_id === portfolioId);
   const cashFromSales = txns
     .filter(t => t.type === 'withdrawal' && t.keep_in_cash)
-    .reduce((s, t) => s + ((t.amount || 0) - (t.fees_amount || 0)), 0);
+    .reduce((s, t) => s + (t.net_amount ?? t.amount ?? 0), 0);
   const cashUsedForPurchases = txns
     .filter(t => t.type === 'deposit' && t.from_cash_amount)
     .reduce((s, t) => s + (t.from_cash_amount || 0), 0);
@@ -1337,7 +1365,7 @@ function updateTransaction(portfolioId, txId, updates) {
     ? Math.round(feeInput * 100) / 100
     : Math.round(amount * feesPct / 100 * 100) / 100;
   const feeDirection = (updates.fee_direction ?? oldTx.fee_direction) === 'added' ? 'added' : 'deducted';
-  const netAmount = Math.round((feeDirection === 'added' ? amount + feesAmount : amount - feesAmount) * 100) / 100;
+  const netAmount = montantNet(amount, feesAmount, feeDirection);
 
   store.transactions[idx] = {
     ...oldTx,
@@ -2076,9 +2104,9 @@ function addSimulationTransaction(simulationId, portfolioId, txData) {
   const fees_amount = feesType === 'euro'
     ? Math.round(feeInput * 100) / 100
     : Math.round(amount * fees_pct / 100 * 100) / 100;
-  // Sens des frais : 'deducted' (défaut) net = brut − frais ; 'added' net = brut + frais.
+  // Sens des frais : 'deducted' (défaut) investi = saisi − frais ; 'added' investi = saisi.
   const feeDirection = txData.fee_direction === 'added' ? 'added' : 'deducted';
-  const net_amount = Math.round((feeDirection === 'added' ? amount + fees_amount : amount - fees_amount) * 100) / 100;
+  const net_amount = montantNet(amount, fees_amount, feeDirection);
   // Pour un retrait : net reçu = montant − frais (cohérent avec le tableau de bord)
   const balanceDelta = txData.type === 'deposit' ? net_amount : net_amount;
 
@@ -2321,6 +2349,7 @@ function createSimulationMovementTemplate(simulationId, data) {
     portfolio_id: data.portfolio_id,
     fees_pct: parseFloat(data.fees_pct) || 0,
     fees_type: data.fees_type === 'euro' ? 'euro' : 'percent',
+    fee_direction: data.fee_direction === 'added' ? 'added' : 'deducted',
     annual_fees_pct: parseFloat(data.annual_fees_pct) || 0,
     annual_fees_type: data.annual_fees_type === 'euro' ? 'euro' : 'percent',
     asset_type: data.asset_type || null,
@@ -2369,6 +2398,7 @@ function createSimulationRegularMovement(simulationId, data) {
     asset_allocations: Array.isArray(data.asset_allocations) ? data.asset_allocations : [],
     fees_pct: parseFloat(data.fees_pct) || 0,
     fees_type: data.fees_type === 'euro' ? 'euro' : 'percent',
+    fee_direction: data.fee_direction === 'added' ? 'added' : 'deducted',
     annual_fees_pct: parseFloat(data.annual_fees_pct) || 0,
     annual_fees_type: data.annual_fees_type === 'euro' ? 'euro' : 'percent',
     status: 'active',
@@ -2478,7 +2508,7 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
         const totalFee = feesType === 'euro'
           ? Math.min(feeInput, amount)
           : Math.round(amount * feeInput / 100 * 100) / 100;
-        const netTotal = Math.round((feeDirection === 'added' ? amount + totalFee : amount - totalFee) * 100) / 100;
+        const netTotal = montantNet(amount, totalFee, feeDirection);
         const allocations = (rm.asset_allocations && rm.asset_allocations.length > 0)
           ? rm.asset_allocations
           : [{ type: rm.asset_types?.[0] || 'autre', pct: 100 }];
@@ -2489,7 +2519,7 @@ function syncSimulationRegularMovements(simulationId, untilDate) {
           const allocAmount = Math.round(amount * ((alloc.pct ?? 100) / 100) * 100) / 100;
           // Frais répartis proportionnellement à l'allocation
           const allocFee = amount > 0 ? Math.round(totalFee * (allocAmount / amount) * 100) / 100 : 0;
-          const allocNet = Math.round((feeDirection === 'added' ? allocAmount + allocFee : allocAmount - allocFee) * 100) / 100;
+          const allocNet = montantNet(allocAmount, allocFee, feeDirection);
           const allocAnnualEuro = (annualFeesType === 'euro' && amount > 0)
             ? Math.round(annualFeeInput * (allocAmount / amount) * 100) / 100
             : 0;
@@ -2846,6 +2876,7 @@ function exportSimulationsToJSON() {
 function importSimulationsFromJSON(json) {
   if (json && json.simulations) {
     _simulationsData = json;
+    _normaliserFraisSimulations();
     saveSimulations();
   }
 }
@@ -2952,7 +2983,7 @@ function getAssetAllocation(useRealValue) {
       const k   = resolveAssetType(t) || 'non_defini';
       const net = t.net_amount ?? t.amount ?? 0;
       if (t.type === 'deposit')         envAsset[k] = (envAsset[k] || 0) + net;
-      else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - (t.amount ?? t.net_amount ?? 0);
+      else if (t.type === 'withdrawal') envAsset[k] = (envAsset[k] || 0) - montantFraisCompris(t);
     });
     const depTotal = Object.values(envAsset).reduce((s, v) => s + Math.max(0, v), 0);
 
@@ -4708,9 +4739,9 @@ function syncRegularMovements(catchUpReport = null) {
         const totalFee  = feesType === 'euro'
           ? Math.min(feeInput, amount)
           : Math.round(amount * feeInput / 100 * 100) / 100;
-        // Sens des frais du récurrent : 'deducted' (défaut) net = brut − frais ; 'added' net = brut + frais.
+        // Sens des frais du récurrent : 'deducted' (défaut) investi = saisi − frais ; 'added' investi = saisi.
         const feeDirection = rm.fee_direction === 'added' ? 'added' : 'deducted';
-        const netAmount = Math.round((feeDirection === 'added' ? amount + totalFee : amount - totalFee) * 100) / 100;
+        const netAmount = montantNet(amount, totalFee, feeDirection);
 
         // Frais annuels de gestion du récurrent, propagés à chaque occurrence
         // ('percent' = taux %/an accumulé sur le montant net ; 'euro' = montant fixe €/an).
@@ -4734,7 +4765,7 @@ function syncRegularMovements(catchUpReport = null) {
         for (const alloc of allocations) {
           const allocAmount = Math.round(amount * ((alloc.pct ?? 100) / 100) * 100) / 100;
           const allocFee    = amount > 0 ? Math.round(totalFee * (allocAmount / amount) * 100) / 100 : 0;
-          const allocNet    = Math.round((feeDirection === 'added' ? allocAmount + allocFee : allocAmount - allocFee) * 100) / 100;
+          const allocNet    = montantNet(allocAmount, allocFee, feeDirection);
           // Frais annuels : taux % identique par allocation ; montant € réparti au prorata.
           const allocAnnualEuro = (annualFeesType === 'euro' && amount > 0)
             ? Math.round(annualFeeInput * (allocAmount / amount) * 100) / 100

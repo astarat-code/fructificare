@@ -700,8 +700,8 @@ export default function RegularMovementsPanel({
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-1">
                     {templateForm.fee_direction === 'added'
-                      ? L("Les frais s'ajoutent au montant total sorti ou entré.", 'Fees are added on top of the total amount out or in.')
-                      : L('Les frais sont prélevés sur le montant reçu ou envoyé.', 'Fees are taken from the amount received or sent.')}
+                      ? L("Les frais s'ajoutent au montant saisi : ils comptent dans vos versements, pas dans le montant investi.", 'Fees come on top of the amount typed: they count in your deposits, not in the amount invested.')
+                      : L('Les frais sont prélevés sur le montant saisi : le montant investi est diminué d\'autant.', 'Fees are taken out of the amount typed: the amount invested is reduced accordingly.')}
                   </p>
                 </div>
 
@@ -820,8 +820,8 @@ export default function RegularMovementsPanel({
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
                 {form.fee_direction === 'added'
-                  ? L("Les frais s'ajoutent au montant total sorti ou entré.", 'Fees are added on top of the total amount out or in.')
-                  : L('Les frais sont prélevés sur le montant reçu ou envoyé.', 'Fees are taken from the amount received or sent.')}
+                  ? L("Les frais s'ajoutent au montant saisi : ils comptent dans vos versements, pas dans le montant investi.", 'Fees come on top of the amount typed: they count in your deposits, not in the amount invested.')
+                  : L('Les frais sont prélevés sur le montant saisi : le montant investi est diminué d\'autant.', 'Fees are taken out of the amount typed: the amount invested is reduced accordingly.')}
               </p>
             </div>
 
