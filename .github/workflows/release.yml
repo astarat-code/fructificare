@@ -126,7 +126,7 @@ jobs:
             Set-Content -Path (Join-Path $out "SHA256SUMS-windows.txt") -Encoding ascii
           Get-Content (Join-Path $out "SHA256SUMS-windows.txt")
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fructificare-windows
           path: frontend/src-tauri/target/release/artifacts/*
@@ -211,7 +211,7 @@ jobs:
           sha256sum *.AppImage *.deb > SHA256SUMS-linux.txt
           cat SHA256SUMS-linux.txt
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fructificare-linux
           path: frontend/src-tauri/target/release/artifacts/*
@@ -296,7 +296,7 @@ jobs:
           shasum -a 256 *.dmg > SHA256SUMS-macos.txt
           cat SHA256SUMS-macos.txt
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fructificare-macos
           path: frontend/src-tauri/target/universal-apple-darwin/release/artifacts/*
@@ -356,7 +356,7 @@ jobs:
           node scripts/make-latest-json.js ../artifacts "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY"
           cat ../artifacts/latest.json
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fructificare-updater
           path: artifacts/latest.json
